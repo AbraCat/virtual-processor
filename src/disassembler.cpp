@@ -7,27 +7,31 @@
 
 void runDisasm(FILE* fin, FILE* fout)
 {
-    #define DISASM_CASE(command)    \
-        case CMD_ ## command:       \
-        fputs(#command "\n", fout); \
-        break;
+    #define MAX_CMDS 100
+    #define DISASM_CASE(command)        \
+        case CMD_ ## command:           \
+            fputs(#command "\n", fout); \
+            break;
+    #define DISASM_CASE_ARG(command)               \
+        case CMD_ ## command:                      \
+            fprintf(fout, #command " %d\n", code[ip++]); \
+            break;
 
     assert(fin != NULL && fout != NULL);
 
-    int code[100] = {};
-    readCode(fin, code);
+    int code[MAX_CMDS] = {};
+    readCode(fin, code, MAX_CMDS);
     int ip = 0;
     
     while (1)
     {
+        if (ip >= MAX_CMDS)
+            return;
         switch (code[ip++])
         {
-            case CMD_HLT:
-                fputs("HLT", fout);
+            case CMD_END:
                 return;
-            case CMD_PUSH:
-                fprintf(fout, "PUSH %d\n", code[ip++]);
-                break;
+            DISASM_CASE(HLT)
             DISASM_CASE(IN)
             DISASM_CASE(OUT)
             DISASM_CASE(ADD)
@@ -35,10 +39,25 @@ void runDisasm(FILE* fin, FILE* fout)
             DISASM_CASE(MUL)
             DISASM_CASE(DIV)
             DISASM_CASE(DUMP)
+            DISASM_CASE(RET)
+
+            DISASM_CASE_ARG(PUSH)
+            DISASM_CASE_ARG(PUSHR)
+            DISASM_CASE_ARG(POP)
+            DISASM_CASE_ARG(JMP)
+            DISASM_CASE_ARG(JB)
+            DISASM_CASE_ARG(JBE)
+            DISASM_CASE_ARG(JA)
+            DISASM_CASE_ARG(JAE)
+            DISASM_CASE_ARG(JE)
+            DISASM_CASE_ARG(JNE)
+            DISASM_CASE_ARG(CALL)
+            
             default:
                 break;
         }
     }
 
     #undef DISASM_CASE
+    #undef DISASM_CASE_ARG
 }

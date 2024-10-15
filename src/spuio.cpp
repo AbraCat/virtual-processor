@@ -3,27 +3,25 @@
 #include <spuio.h>
 #include <cmd.h>
 
-int readCode(FILE* fin, int* code)
+int readCode(FILE* fin, int* code, int max_cmds)
 {
     assert(fin != NULL);
 
-    for (int ip = 0; fscanf(fin, "%d", code + ip) != EOF; ++ip)
-    {
-        if (code[ip] == CMD_HLT) break;
-    }
+    int ip = 0;
+    for (ip = 0; ip < max_cmds - 1 && fscanf(fin, "%d", code + ip) != EOF; ++ip);
+    code[ip] = CMD_END;
 
     fclose(fin);
     return 0;
 }
 
-int writeCode(FILE* fout, int* code)
+int writeCode(FILE* fout, int* code, int max_cmds)
 {
     assert(fout != NULL);
 
-    for (int ip = 0; 1; ++ip)
+    for (int ip = 0; ip < max_cmds && code[ip] != CMD_END; ++ip)
     {
         fprintf(fout, "%d ", code[ip]);
-        if (code[ip] == CMD_HLT) break;
     }
 
     fclose(fout);

@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-int readCode(FILE* fin, int* code);
-int writeCode(FILE* fout, int* code);
+int readCode(FILE* fin, int* code, int max_cmds);
+int writeCode(FILE* fout, int* code, int max_cmds);
 
 #endif // SPU_IO
