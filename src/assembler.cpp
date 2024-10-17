@@ -6,62 +6,166 @@
 #include <cmd.h>
 #include <spuio.h>
 
+const int MEM = 0x80, REG = 0x40, IMM = 0x20;
+
+void asmCtor(Asm* ase)
+{
+    #define ALLOC_BUF(var) ase->var = (char*)calloc(ase->buffer_size, sizeof(char))
+
+    ase->buffer_size = 30;
+    ase->code_size = 100;
+
+    ALLOC_BUF(str_cmd);
+    ALLOC_BUF(str_arg1);
+    ALLOC_BUF(str_arg2);
+    ALLOC_BUF(label);
+    ALLOC_BUF(chr1);
+
+    ase->code = (int*)calloc(ase->code_size, sizeof(int));
+    ase->ip = ase->n_args = ase->arg1 = ase->arg2 = 0;
+    initLabelArray(&ase->la);
+    initFixupTable(&ase->ft);
+
+    #undef ALLOC_BUF
+}
+void asmDtor(Asm* ase)
+{
+    free(ase->str_cmd);
+    free(ase->str_arg1);
+    free(ase->str_arg2);
+    free(ase->label);
+    free(ase->chr1);
+    free(ase->code);
+    labelArrayDtor(&ase->la);
+    fixupTableDtor(&ase->ft);
+}
+
+void getRegNum(char* str_name, int* num)
+{
+    #define REG_CASE(name)                \
+        if (strcmp(str_name, #name) == 0) \
+        {                                 \
+            *num = (int)name;             \
+            return;                       \
+        }
+
+    REG_CASE(AX)
+    REG_CASE(BX)
+    REG_CASE(CX)
+    REG_CASE(DX)
+
+    *num = -1;
+
+    #undef REG_CASE
+}
+
+void getArg(Asm* ase)
+{
+    /*
+    push:
+    ok:    001 010 011 101 110 111
+    wrong: 000 100
+
+    pop:
+    ok:    010 101 110 111
+    wrong: 000 001 011 100
+    */
+
+    ase->chr1 = strchr(ase->str_arg1, ']');
+    if (ase->chr1 != NULL && sscanf(ase->str_arg1, "[%s", ase->str_arg2) == 1)
+    {
+        ase->code[ase->ip] |= MEM;
+        *(ase->str_arg2 + (ase->chr1 - ase->str_arg1) - 1) = '\0'; // ] in str_arg2
+        strcpy(ase->str_arg1, ase->str_arg2);
+    }
+
+    ase->chr1 = strchr(ase->str_arg1, '+');
+    if (ase->chr1 != NULL && sscanf(ase->chr1 + 1, "%d", &ase->arg2) == 1)
+    {
+        ase->code[ase->ip] |= REG | IMM;
+        *(ase->chr1) = '\0';
+        getRegNum(ase->str_arg1, &ase->arg1);
+        ase->code[ase->ip + 1] = ase->arg1;
+        ase->code[ase->ip + 2] = ase->arg2;
+        ase->ip += 3;
+    }
+
+    else if (sscanf(ase->str_arg1, "%d", &ase->arg1) == 1)
+    {
+        ase->code[ase->ip] |= IMM;
+        ase->code[ase->ip + 1] = ase->arg1;
+        ase->ip += 2;
+    }
+
+    else
+    {
+        ase->code[ase->ip] |= REG;
+        sscanf(ase->str_arg1, "%s", ase->str_arg2);
+        getRegNum(ase->str_arg2, &ase->arg2);
+        ase->code[ase->ip + 1] = ase->arg2;
+        ase->ip += 2;
+    }
+}
+
 void runAsm(FILE* fin, FILE* fout)
 {
-    #define ASM_CASE(command)               \
-        if (strcmp(str_cmd, #command) == 0) \
-        {                                   \
-            code[ip++] = CMD_ ## command;   \
-            continue;                       \
+    #define ASM_CASE(command)                     \
+        if (strcmp(ase.str_cmd, #command) == 0)   \
+        {                                         \
+            ase.code[ase.ip++] = CMD_ ## command; \
+            continue;                             \
         }
-    #define ASM_CASE_ARG(command)           \
-        if (strcmp(str_cmd, #command) == 0) \
-        {                                   \
-            code[ip++] = CMD_ ## command;   \
-            int arg = 0;                    \
-            fscanf(fin, "%d", &arg);        \
-            code[ip++] = arg;               \
-            continue;                       \
+
+    #define ASM_CASE_ARG(command)                 \
+        if (strcmp(ase.str_cmd, #command) == 0)   \
+        {                                         \
+            ase.code[ase.ip++] = CMD_ ## command; \
+            fscanf(fin, "%d", &ase.arg1);         \
+            ase.code[ase.ip++] = ase.arg1;        \
+            continue;                             \
         }
-    #define ASM_CASE_LABEL_ARG(command)               \
-        if (strcmp(str_cmd, #command) == 0)           \
-        {                                             \
-            code[ip++] = CMD_ ## command;             \
-            fscanf(fin, "%s", label);                 \
-            if (label[strlen(label) - 1] == ':')      \
-            {                                         \
-                int adr = -1;                         \
-                getLabelAdr(&la, label, &adr);        \
-                code[ip++] = adr;                     \
-                if (adr == -1)                        \
-                {                                     \
-                    addFixup(&ft, ip - 1, label);     \
-                }                                     \
-            }                                         \
-            else                                      \
-            {                                         \
-                code[ip++] = strtol(label, NULL, 10); \
-            }                                         \
+
+    #define ASM_CASE_COMPLEX_ARG(command)       \
+        if (strcmp(ase.str_cmd, #command) == 0) \
+        {                                       \
+            ase.code[ase.ip] = CMD_ ## command; \
+            fscanf(fin, "%s", ase.str_arg1);    \
+            getArg(&ase);                       \
+        }
+
+    #define ASM_CASE_LABEL_ARG(command)                           \
+        if (strcmp(ase.str_cmd, #command) == 0)                   \
+        {                                                         \
+            ase.code[ase.ip++] = CMD_ ## command;                 \
+            fscanf(fin, "%s", ase.label);                         \
+            if (ase.label[strlen(ase.label) - 1] == ':')          \
+            {                                                     \
+                getLabelAdr(&ase.la, ase.label, &ase.arg1);       \
+                ase.code[ase.ip++] = ase.arg1;                    \
+                if (ase.arg1 == -1)                               \
+                {                                                 \
+                    addFixup(&ase.ft, ase.ip - 1, ase.label);     \
+                }                                                 \
+            }                                                     \
+            else                                                  \
+            {                                                     \
+                ase.code[ase.ip++] = strtol(ase.label, NULL, 10); \
+            }                                                     \
         }
 
     assert(fin != NULL && fout != NULL);
 
-    char str_cmd[50] = "", label[20] = "";
-    int code[100] = {};
-    int ip = 0;
-    LabelArray la = {};
-    initLabelArray(&la);
-    FixupTable ft = {};
-    initFixupTable(&ft);
+    Asm ase = {};
+    asmCtor(&ase);
     
     while (1)
     {
-        if (fscanf(fin, "%s", str_cmd) == EOF)
+        if (fscanf(fin, "%s", ase.str_cmd) == EOF)
             break;
 
-        if (str_cmd[strlen(str_cmd) - 1] == ':')
+        if (ase.str_cmd[strlen(ase.str_cmd) - 1] == ':')
         {
-            insertLabel(&la, ip, str_cmd);
+            insertLabel(&ase.la, ase.ip, ase.str_cmd);
         }
         
         ASM_CASE(HLT)
@@ -73,10 +177,10 @@ void runAsm(FILE* fin, FILE* fout)
         ASM_CASE(DIV)
         ASM_CASE(DUMP)
         ASM_CASE(RET)
+        ASM_CASE(DRAW)
 
-        ASM_CASE_ARG(PUSH)
-        ASM_CASE_ARG(PUSHR)
-        ASM_CASE_ARG(POP)
+        ASM_CASE_COMPLEX_ARG(PUSH)
+        ASM_CASE_COMPLEX_ARG(POP)
 
         ASM_CASE_LABEL_ARG(JMP)
         ASM_CASE_LABEL_ARG(JB)
@@ -90,11 +194,10 @@ void runAsm(FILE* fin, FILE* fout)
         // syntax error
     }
 
-    fixup(code, &ft, &la);
-    code[ip] = CMD_END;
-    writeCode(fout, code, ip);
-    labelArrayDtor(&la);
-    fixupTableDtor(&ft);
+    fixup(ase.code, &ase.ft, &ase.la);
+    ase.code[ase.ip] = CMD_END;
+    writeCode(fout, ase.code, ase.ip);
+    asmDtor(&ase);
 
     #undef ASM_CASE
 }

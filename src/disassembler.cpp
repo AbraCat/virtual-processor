@@ -40,10 +40,8 @@ void runDisasm(FILE* fin, FILE* fout)
             DISASM_CASE(DIV)
             DISASM_CASE(DUMP)
             DISASM_CASE(RET)
+            DISASM_CASE(DRAW)
 
-            DISASM_CASE_ARG(PUSH)
-            DISASM_CASE_ARG(PUSHR)
-            DISASM_CASE_ARG(POP)
             DISASM_CASE_ARG(JMP)
             DISASM_CASE_ARG(JB)
             DISASM_CASE_ARG(JBE)
@@ -52,6 +50,8 @@ void runDisasm(FILE* fin, FILE* fout)
             DISASM_CASE_ARG(JE)
             DISASM_CASE_ARG(JNE)
             DISASM_CASE_ARG(CALL)
+
+            // add push/pop
             
             default:
                 break;

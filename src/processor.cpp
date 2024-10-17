@@ -1,100 +1,206 @@
 #include <assert.h>
+#include <stdlib.h>
 
 #include <processor.h>
 #include <cmd.h>
-#include <stack.h>
 
 static const int MAX_CMDS = 100;
+const int MEM = 0x80, REG = 0x40, IMM = 0x20, MASK_CMD = 0x1F, MASK_ARGT = 0xE0;
+
+void procCtor(Proc* prc, int* code)
+{
+    prc->ram_size = 5;
+
+    stCtor(&prc->st, 0);
+    stCtor(&prc->ret, 0);
+    prc->ip = prc->cmd = prc->argt = prc->arg1 = prc->arg2 = 0;
+    prc->reg = (int*)calloc(4, sizeof(int));
+    prc->code = code;
+    prc->ram = (int*)calloc(prc->ram_size * prc->ram_size, sizeof(int));
+}
+void procDtor(Proc* prc)
+{
+    stDtor(&prc->st);
+    stDtor(&prc->ret);
+    free(prc->reg);
+    free(prc->ram);
+}
+
+void analArg(Proc* prc, int** arg)
+{
+    /*
+    push:
+    ok:    001 010 011 101 110 111
+    wrong: 000 100
+
+    pop:
+    ok:    010 101 110 111
+    wrong: 000 001 011 100
+
+    001 011     - arg1 (used for push)
+    010         - reg
+    101 110 111 - ram
+    */
+
+    if ((prc->argt & (IMM | REG | MEM)) == 0 || (prc->argt & (IMM | REG | MEM)) == MEM)
+    {
+        *arg = NULL;
+        return;
+    }
+
+    if ((prc->argt & (IMM | REG | MEM)) == REG)
+    {
+        *arg = prc->reg + prc->code[prc->ip++];
+        return;
+    }
+
+    int argv = 0;
+    if (prc->argt & REG)
+    {
+        argv += prc->reg[prc->code[prc->ip++]];
+    }
+    if (prc->argt & IMM)
+    {
+        argv += prc->code[prc->ip++];
+    }
+    if (prc->argt & MEM)
+    {
+        *arg = prc->ram + argv;
+        return;
+    }
+
+    // push
+    prc->arg1 = argv;
+    *arg = &prc->arg1;
+    return;
+}
 
 void runProc(int* code, FILE* fin, FILE* fout)
 {
     assert(fin != NULL && fout != NULL);
 
-    Stack st = {}, ret = {};
-    stCtor(&st, 0);
-    stCtor(&ret, 0);
-    int ip = 0, cmd = 0, arg1 = 0, arg2 = 0;
-    int reg[4] = {};
+    struct Proc prc = {};
+    procCtor(&prc, code);
+
     while (1)
     {
-        if (ip == MAX_CMDS || code[ip] == CMD_END)
+        if (prc.ip == MAX_CMDS || code[prc.ip] == CMD_END)
         {
             return;
         }
-        cmd = code[ip++];
-        switch(cmd)
+        prc.cmd = code[prc.ip] & MASK_CMD;
+        prc.argt = code[prc.ip++] & MASK_ARGT;
+        switch(prc.cmd)
         {
             case CMD_HLT:
                 return;
             case CMD_IN:
-                fscanf(fin, "%d", &arg1);
-                stPush(&st, arg1);
+                fscanf(fin, "%d", &prc.arg1);
+                stPush(&prc.st, prc.arg1);
                 break;
             case CMD_OUT:
-                stPop(&st, &arg1);
-                fprintf(fout, "%d\n", arg1);
-                break;
-            case CMD_PUSH:
-                stPush(&st, code[ip++]);
+                stPop(&prc.st, &prc.arg1);
+                fprintf(fout, "%d\n", prc.arg1);
                 break;
             case CMD_ADD:
-                stPop(&st, &arg1);
-                stPop(&st, &arg2);
-                stPush(&st, arg1 + arg2);
+                stPop(&prc.st, &prc.arg1);
+                stPop(&prc.st, &prc.arg2);
+                stPush(&prc.st, prc.arg1 + prc.arg2);
                 break;
             case CMD_SUB:
-                stPop(&st, &arg1);
-                stPop(&st, &arg2);
-                stPush(&st, arg2 - arg1);
+                stPop(&prc.st, &prc.arg1);
+                stPop(&prc.st, &prc.arg2);
+                stPush(&prc.st, prc.arg2 - prc.arg1);
                 break;
             case CMD_MUL:
-                stPop(&st, &arg1);
-                stPop(&st, &arg2);
-                stPush(&st, arg1 * arg2);
+                stPop(&prc.st, &prc.arg1);
+                stPop(&prc.st, &prc.arg2);
+                stPush(&prc.st, prc.arg1 * prc.arg2);
                 break;
             case CMD_DIV:
-                stPop(&st, &arg1);
-                stPop(&st, &arg2);
-                stPush(&st, arg2 / arg1);
+                stPop(&prc.st, &prc.arg1);
+                stPop(&prc.st, &prc.arg2);
+                stPush(&prc.st, prc.arg2 / prc.arg1);
                 break;
             case CMD_DUMP:
-                stDump(fout, &st);
+                stDump(fout, &prc.st);
                 break;
-            case CMD_PUSHR:
-                stPush(&st, reg[code[ip++]]);
+            case CMD_PUSH:
+            {
+                int *arg = NULL;
+                analArg(&prc, &arg);
+                if (arg == NULL)
+                {
+                    fprintf(fout, "Invalid argument type: %d\n", prc.argt);
+                    break;
+                }
+                stPush(&prc.st, *arg);
                 break;
+            }
             case CMD_POP:
-                stPop(&st, reg + code[ip++]);
+            {
+                int *arg = NULL;
+                analArg(&prc, &arg);
+                if (arg == NULL)
+                {
+                    fprintf(fout, "Invalid argument type: %d\n", prc.argt);
+                    break;
+                }
+                stPop(&prc.st, arg);
+                break;
+            }
+            case CMD_DRAW:
+                for (int i = 0; i < prc.ram_size; ++i)
+                {
+                    for (int j = 0; j < prc.ram_size; ++j)
+                    {
+                        if (prc.ram[i * prc.ram_size + j] == 0)
+                        {
+                            putc('.', stdout);
+                            putc('.', stdout);
+                        }
+                        else
+                        {
+                            putc('*', stdout);
+                            putc('*', stdout);
+                        }
+                    }
+                    putc('\n', stdout);
+                }
                 break;
             case CMD_JMP:
-                ip = code[ip];
+                prc.ip = code[prc.ip];
                 break;
 
-            #define CASE_JMP(jmp, op)      \
-                case CMD_ ## jmp:          \
-                    stPop(&st, &arg2);     \
-                    stPop(&st, &arg1);     \
-                    if (arg1 op arg2)      \
-                        ip = code[ip]; \
+            #define CASE_JMP(jmp, op)          \
+                case CMD_ ## jmp:              \
+                    stPop(&prc.st, &prc.arg2); \
+                    stPop(&prc.st, &prc.arg1); \
+                    if (prc.arg1 op prc.arg2)  \
+                        prc.ip = code[prc.ip]; \
                     break;
+
             CASE_JMP(JB, <)
             CASE_JMP(JBE, <=)
             CASE_JMP(JA, >)
             CASE_JMP(JAE, >=)
             CASE_JMP(JE, ==)
             CASE_JMP(JNE, !=)
+            
             #undef CASE_JMP
 
             case CMD_CALL:
-                stPush(&ret, ip + 1);
-                ip = code[ip];
+                stPush(&prc.ret, prc.ip + 1);
+                prc.ip = code[prc.ip];
                 break;
             case CMD_RET:
-                stPop(&ret, &ip);
+                stPop(&prc.ret, &prc.ip);
                 break;
             default:
-                fprintf(fout, "Invalid instruction: %d\n", cmd);
+                fprintf(fout, "Invalid instruction: %d\n", prc.cmd);
                 break;
         }
     }
+
+    procDtor(&prc);
 }

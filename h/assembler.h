@@ -3,6 +3,14 @@
 
 #include <stdio.h>
 
+enum Reg
+{
+    AX = 0,
+    BX = 1,
+    CX = 2,
+    DX = 3,
+};
+
 struct Label
 {
     int adr;
@@ -25,9 +33,25 @@ struct FixupTable
     int n_fixups, max_elems;
 };
 
+struct Asm
+{
+    char *str_cmd, *str_arg1, *str_arg2, *label, *chr1;
+    int *code;
+    int ip, n_args, arg1, arg2;
+    LabelArray la;
+    FixupTable ft;
+
+    int buffer_size, code_size;
+};
+
 
 void runAsm(FILE* fin, FILE* fout);
+void getRegNum(char* str_name, int* num);
+void getArg(Asm*);
 
+
+void asmCtor(Asm* ase);
+void asmDtor(Asm* ase);
 
 void initLabel(Label* label);
 void initLabelArray(LabelArray* la);

@@ -10,6 +10,33 @@ int mainProc();
 int mainAsm();
 int mainDisasm();
 
+/*
+PUSH 0
+POP AX
+AAA:
+PUSH AX
+PUSH AX
+MUL
+OUT
+PUSH AX
+PUSH 1
+ADD
+POP AX
+PUSH AX
+PUSH 10
+JB AAA:
+DRAW
+HLT
+
+PUSH 2
+POP BX
+PUSH 153
+POP [BX+3]
+PUSH [5]
+OUT
+HLT
+*/
+
 int main(int argc, const char* argv[])
 {
     static const int n_opts = 3;
