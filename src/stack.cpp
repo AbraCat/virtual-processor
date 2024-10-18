@@ -44,7 +44,7 @@ void handleErrFn(stErrCode error, const char* file, int line, const char* func)
     if (!error)
         return;
 
-    printf("%sError: %s%s\nat %s:%d function: %s\n", RED, stStrError(error), DEFAULT, file, line, func);
+    printf("%sError: %s%s\nat %s:%d function: %s\n", RED_STR, stStrError(error), DEFAULT_STR, file, line, func);
     
     exit(error);
 }
@@ -54,7 +54,7 @@ void stAssertFn(int expr, const char* str_expr, const char* file, int line, cons
     if (expr)
         return;
 
-    printf("%sAssrtion failed: %s%s\nat %s:%d function: %s\n", RED, str_expr, DEFAULT, file, line, func);
+    printf("%sAssrtion failed: %s%s\nat %s:%d function: %s\n", RED_STR, str_expr, DEFAULT_STR, file, line, func);
 
     exit(ERR_ASSERT);
 }
@@ -349,7 +349,7 @@ stErrCode stErr(Stack* st)
 
 void stDumpFn(FILE* file, Stack* st, const char* file_name, int line, const char* func_name)
 {
-    #define PRINT_ERR(err) fprintf(file, "%sstDump(): %s%s\n", MAGENTA, stStrError(ERR_ ## err), DEFAULT)
+    #define PRINT_ERR(err) fprintf(file, "%sstDump(): %s%s\n", MAGENTA_STR, stStrError(ERR_ ## err), DEFAULT_STR)
     static const int max_n_elem = 20;
 
     if (file == NULL || file_name == NULL || func_name == NULL)
@@ -390,11 +390,11 @@ void stDumpFn(FILE* file, Stack* st, const char* file_name, int line, const char
         too_big = 1;
         if (st->size > max_n_elem)
         {
-            fprintf(file, "%s%s%s", MAGENTA, "Warning: size is too big\n\n", DEFAULT);
+            fprintf(file, "%s%s%s", MAGENTA_STR, "Warning: size is too big\n\n", DEFAULT_STR);
         }
         else
         {
-            fprintf(file, "%s%s%s", MAGENTA, "Warning: capacity is too big\n\n", DEFAULT);
+            fprintf(file, "%s%s%s", MAGENTA_STR, "Warning: capacity is too big\n\n", DEFAULT_STR);
         }
     }
 

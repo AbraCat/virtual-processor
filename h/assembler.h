@@ -35,9 +35,9 @@ struct FixupTable
 
 struct Asm
 {
-    char *str_cmd, *str_arg1, *str_arg2, *label, *chr1;
+    char *str_code, *str_cmd, *str_arg1, *str_arg2, *label, *chr1;
     int *code;
-    int ip, n_args, arg1, arg2;
+    int ip, str_code_pos, pos_incr, n_args, arg1, arg2;
     LabelArray la;
     FixupTable ft;
 
@@ -48,6 +48,10 @@ struct Asm
 void runAsm(FILE* fin, FILE* fout);
 void getRegNum(char* str_name, int* num);
 void getArg(Asm*);
+
+int fileSize(FILE *file, long *siz);
+int readFile(FILE* file, char** bufptr);
+void clearComments(char* str);
 
 
 void asmCtor(Asm* ase);

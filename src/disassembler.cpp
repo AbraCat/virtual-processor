@@ -8,13 +8,21 @@
 void runDisasm(FILE* fin, FILE* fout)
 {
     #define MAX_CMDS 100
+
     #define DISASM_CASE(command)        \
         case CMD_ ## command:           \
             fputs(#command "\n", fout); \
             break;
-    #define DISASM_CASE_ARG(command)               \
-        case CMD_ ## command:                      \
-            fprintf(fout, #command " %d\n", code[ip++]); \
+
+    #define DISASM_CASE_ARG(command)        \
+        case CMD_ ## command:               \
+            fprintf(fout, #command " %d\n", \
+            code[ip++]);                    \
+            break;
+
+    #define DISASM_CASE_COMPLEX_ARG \
+        case CMD ## COMMAND: \
+            aaa \
             break;
 
     assert(fin != NULL && fout != NULL);

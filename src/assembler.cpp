@@ -1,12 +1,80 @@
 #include <string.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #include <assembler.h>
 #include <cmd.h>
 #include <spuio.h>
 
 const int MEM = 0x80, REG = 0x40, IMM = 0x20;
+
+int fileSize(FILE *file, long *siz)
+{
+    assert(file != NULL && siz != NULL);
+
+    if (fseek(file, 0L, SEEK_END))
+    {
+        *siz = -1L;
+        return errno;
+    }
+
+    *siz = ftell(file);
+
+    if (*siz == -1L)
+        return errno;
+    if (fseek(file, 0L, SEEK_SET))
+        return errno;
+
+    return 0;
+}
+
+int readFile(FILE* file, char** bufptr)
+{
+    assert(file != NULL && bufptr != NULL);
+
+    long siz = 0;
+    int error = fileSize(file, &siz);
+
+    if (error != 0)
+    {
+        *bufptr = NULL;
+        return error;
+    }
+
+    char* buf = *bufptr = (char*)calloc(siz + 2, sizeof(char));
+    if (buf == NULL)
+        return errno;
+
+    int n_read = fread(buf, sizeof(char), siz, file);
+    if (ferror(file))
+    {
+        free(buf);
+        *bufptr = NULL;
+        return EIO;
+    }
+
+    if (buf[n_read - 1] != '\n')
+        buf[n_read++] = '\n';
+    buf[n_read] = '\0';
+    return 0;
+}
+
+void clearComments(char* str)
+{
+    static const char comment_start = ';';
+
+    int clearing = 0;
+    for (; *str != '\0'; ++str)
+    {
+        if (*str == comment_start)
+            clearing = 1;
+        else if (*str == '\n')
+            clearing = 0;
+        if (clearing)
+            *str = ' ';
+    }
+}
 
 void asmCtor(Asm* ase)
 {
@@ -21,8 +89,12 @@ void asmCtor(Asm* ase)
     ALLOC_BUF(label);
     ALLOC_BUF(chr1);
 
+    ase->ip = ase->n_args = ase->arg1 = ase->arg2 = 
+    ase->str_code_pos = ase->pos_incr = 0;
+
     ase->code = (int*)calloc(ase->code_size, sizeof(int));
-    ase->ip = ase->n_args = ase->arg1 = ase->arg2 = 0;
+    ase->str_code = NULL;
+
     initLabelArray(&ase->la);
     initFixupTable(&ase->ft);
 
@@ -30,6 +102,7 @@ void asmCtor(Asm* ase)
 }
 void asmDtor(Asm* ase)
 {
+    free(ase->str_code);
     free(ase->str_cmd);
     free(ase->str_arg1);
     free(ase->str_arg2);
@@ -109,6 +182,14 @@ void getArg(Asm* ase)
 
 void runAsm(FILE* fin, FILE* fout)
 {
+    #define myScanf(fmt, ...)                               \
+    (                                                       \
+        scanf_res = sscanf(ase.str_code + ase.str_code_pos, \
+        fmt "%n", __VA_ARGS__, &ase.pos_incr),              \
+        ase.str_code_pos += ase.pos_incr,                   \
+        scanf_res \
+    )
+
     #define ASM_CASE(command)                     \
         if (strcmp(ase.str_cmd, #command) == 0)   \
         {                                         \
@@ -120,7 +201,7 @@ void runAsm(FILE* fin, FILE* fout)
         if (strcmp(ase.str_cmd, #command) == 0)   \
         {                                         \
             ase.code[ase.ip++] = CMD_ ## command; \
-            fscanf(fin, "%d", &ase.arg1);         \
+            myScanf("%d", &ase.arg1);             \
             ase.code[ase.ip++] = ase.arg1;        \
             continue;                             \
         }
@@ -129,7 +210,7 @@ void runAsm(FILE* fin, FILE* fout)
         if (strcmp(ase.str_cmd, #command) == 0) \
         {                                       \
             ase.code[ase.ip] = CMD_ ## command; \
-            fscanf(fin, "%s", ase.str_arg1);    \
+            myScanf("%s", ase.str_arg1);        \
             getArg(&ase);                       \
         }
 
@@ -137,7 +218,7 @@ void runAsm(FILE* fin, FILE* fout)
         if (strcmp(ase.str_cmd, #command) == 0)                   \
         {                                                         \
             ase.code[ase.ip++] = CMD_ ## command;                 \
-            fscanf(fin, "%s", ase.label);                         \
+            myScanf("%s", ase.label);                             \
             if (ase.label[strlen(ase.label) - 1] == ':')          \
             {                                                     \
                 getLabelAdr(&ase.la, ase.label, &ase.arg1);       \
@@ -155,15 +236,19 @@ void runAsm(FILE* fin, FILE* fout)
 
     assert(fin != NULL && fout != NULL);
 
+    int scanf_res = 0;
     Asm ase = {};
     asmCtor(&ase);
+
+    readFile(fin, &ase.str_code);
+    clearComments(ase.str_code);
     
     while (1)
     {
-        if (fscanf(fin, "%s", ase.str_cmd) == EOF)
+        if (myScanf("%s", ase.str_cmd) == EOF)
             break;
 
-        if (ase.str_cmd[strlen(ase.str_cmd) - 1] == ':')
+        if (ase.str_cmd[ase.arg2 - 1] == ':')
         {
             insertLabel(&ase.la, ase.ip, ase.str_cmd);
         }

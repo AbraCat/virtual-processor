@@ -3,6 +3,7 @@
 
 #include <processor.h>
 #include <cmd.h>
+#include <colors.h>
 
 static const int MAX_CMDS = 100;
 const int MEM = 0x80, REG = 0x40, IMM = 0x20, MASK_CMD = 0x1F, MASK_ARGT = 0xE0;
@@ -16,7 +17,7 @@ void procCtor(Proc* prc, int* code)
     prc->ip = prc->cmd = prc->argt = prc->arg1 = prc->arg2 = 0;
     prc->reg = (int*)calloc(4, sizeof(int));
     prc->code = code;
-    prc->ram = (int*)calloc(prc->ram_size * prc->ram_size, sizeof(int));
+    prc->ram = (int*)calloc(prc->ram_size * prc->ram_size * 2, sizeof(int));
 }
 void procDtor(Proc* prc)
 {
@@ -84,12 +85,19 @@ void runProc(int* code, FILE* fin, FILE* fout)
 
     while (1)
     {
+        // printf("ip = %d\n", prc.ip);
         if (prc.ip == MAX_CMDS || code[prc.ip] == CMD_END)
         {
             return;
         }
         prc.cmd = code[prc.ip] & MASK_CMD;
         prc.argt = code[prc.ip++] & MASK_ARGT;
+        // printf("ip: %d regs: ", prc.ip);
+        //     for (int i = 0; i < 4; ++ i)
+        //     {
+        //         printf("%d ", prc.reg[i]);
+        //     }
+        //     putchar('\n');
         switch(prc.cmd)
         {
             case CMD_HLT:
@@ -154,16 +162,28 @@ void runProc(int* code, FILE* fin, FILE* fout)
                 {
                     for (int j = 0; j < prc.ram_size; ++j)
                     {
-                        if (prc.ram[i * prc.ram_size + j] == 0)
-                        {
-                            putc('.', stdout);
-                            putc('.', stdout);
+                        #define COLOR_CASE(color)                                                  \
+                        if (prc.ram[(i * prc.ram_size + j) * 2 + 1] == color)                      \
+                        {                                                                          \
+                            printf("%s%c%c%s", color ## _STR, prc.ram[(i * prc.ram_size + j) * 2], \
+                            prc.ram[(i * prc.ram_size + j) * 2], DEFAULT_STR);                     \
+                            continue;                                                              \
                         }
-                        else
-                        {
-                            putc('*', stdout);
-                            putc('*', stdout);
-                        }
+
+                        COLOR_CASE(DEFAULT)
+                        COLOR_CASE(BLACK)
+                        COLOR_CASE(RED)
+                        COLOR_CASE(GREEN)
+                        COLOR_CASE(YELLOW)
+                        COLOR_CASE(BLUE)
+                        COLOR_CASE(MAGENTA)
+                        COLOR_CASE(CYAN)
+                        COLOR_CASE(WHITE)
+
+                        putchar(prc.ram[(i * prc.ram_size + j) * 2]);
+                        putchar(prc.ram[(i * prc.ram_size + j) * 2]);
+
+                        #undef COLOR_CASE
                     }
                     putc('\n', stdout);
                 }
@@ -178,6 +198,8 @@ void runProc(int* code, FILE* fin, FILE* fout)
                     stPop(&prc.st, &prc.arg1); \
                     if (prc.arg1 op prc.arg2)  \
                         prc.ip = code[prc.ip]; \
+                    else                       \
+                        ++prc.ip;              \
                     break;
 
             CASE_JMP(JB, <)
@@ -197,7 +219,7 @@ void runProc(int* code, FILE* fin, FILE* fout)
                 stPop(&prc.ret, &prc.ip);
                 break;
             default:
-                fprintf(fout, "Invalid instruction: %d\n", prc.cmd);
+                fprintf(fout, "Invalid instruction: %d ip: %d\n", prc.code[prc.ip - 1], prc.ip);
                 break;
         }
     }
