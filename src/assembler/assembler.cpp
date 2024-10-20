@@ -4,60 +4,11 @@
 #include <errno.h>
 
 #include <assembler.h>
-#include <cmd.h>
+#include <common.h>
+#include <error.h>
+#include <utils.h>
 
-const int MEM = 0x80, REG = 0x40, IMM = 0x20;
-
-int fileSize(FILE *file, long *siz)
-{
-    assert(file != NULL && siz != NULL);
-
-    if (fseek(file, 0L, SEEK_END))
-    {
-        *siz = -1L;
-        return errno;
-    }
-
-    *siz = ftell(file);
-
-    if (*siz == -1L)
-        return errno;
-    if (fseek(file, 0L, SEEK_SET))
-        return errno;
-
-    return 0;
-}
-
-int readFile(FILE* file, char** bufptr)
-{
-    assert(file != NULL && bufptr != NULL);
-
-    long siz = 0;
-    int error = fileSize(file, &siz);
-
-    if (error != 0)
-    {
-        *bufptr = NULL;
-        return error;
-    }
-
-    char* buf = *bufptr = (char*)calloc(siz + 2, sizeof(char));
-    if (buf == NULL)
-        return errno;
-
-    int n_read = fread(buf, sizeof(char), siz, file);
-    if (ferror(file))
-    {
-        free(buf);
-        *bufptr = NULL;
-        return EIO;
-    }
-
-    if (buf[n_read - 1] != '\n')
-        buf[n_read++] = '\n';
-    buf[n_read] = '\0';
-    return 0;
-}
+const int MEM = 0x80, REG = 0x40, IMM = 0x20, max_label_len = 20;
 
 void clearComments(char* str)
 {
@@ -75,7 +26,7 @@ void clearComments(char* str)
     }
 }
 
-void asmCtor(Asm* ase)
+ErrEnum asmCtor(Asm* ase)
 {
     #define ALLOC_BUF(var) ase->var = (char*)calloc(ase->buffer_size, sizeof(char))
 
@@ -92,12 +43,16 @@ void asmCtor(Asm* ase)
     ase->str_code_pos = ase->pos_incr = 0;
 
     ase->code = (int*)calloc(ase->code_size, sizeof(int));
+    if (ase->code == NULL)
+        return ERR_MEM;
     ase->str_code = NULL;
 
-    initLabelArray(&ase->la);
-    initFixupTable(&ase->ft);
+    labelArrayCtor(&ase->la);
+    fixupTableCtor(&ase->ft);
 
     #undef ALLOC_BUF
+
+    return OK;
 }
 void asmDtor(Asm* ase)
 {
@@ -126,12 +81,12 @@ void getRegNum(char* str_name, int* num)
     REG_CASE(CX)
     REG_CASE(DX)
 
-    *num = -1;
+    *num = WRONG_REG;
 
     #undef REG_CASE
 }
 
-void getArg(Asm* ase)
+ErrEnum getArg(Asm* ase)
 {
     /*
     push:
@@ -144,19 +99,25 @@ void getArg(Asm* ase)
     */
 
     ase->chr1 = strchr(ase->str_arg1, ']');
-    if (ase->chr1 != NULL && sscanf(ase->str_arg1, "[%s", ase->str_arg2) == 1)
+    if (ase->chr1 != NULL)
     {
+        if (sscanf(ase->str_arg1, "[%s", ase->str_arg2) != 1)
+            return ERR_BRACKET;
         ase->code[ase->ip] |= MEM;
         *(ase->str_arg2 + (ase->chr1 - ase->str_arg1) - 1) = '\0'; // ] in str_arg2
         strcpy(ase->str_arg1, ase->str_arg2);
     }
 
     ase->chr1 = strchr(ase->str_arg1, '+');
-    if (ase->chr1 != NULL && sscanf(ase->chr1 + 1, "%d", &ase->arg2) == 1)
+    if (ase->chr1 != NULL)
     {
+        if (sscanf(ase->chr1 + 1, "%d", &ase->arg2) != 1)
+            return ERR_CMD_ARG_FMT;
         ase->code[ase->ip] |= REG | IMM;
         *(ase->chr1) = '\0';
         getRegNum(ase->str_arg1, &ase->arg1);
+        if (ase->arg1 == WRONG_REG)
+            return ERR_REG_NAME;
         ase->code[ase->ip + 1] = ase->arg1;
         ase->code[ase->ip + 2] = ase->arg2;
         ase->ip += 3;
@@ -174,12 +135,16 @@ void getArg(Asm* ase)
         ase->code[ase->ip] |= REG;
         sscanf(ase->str_arg1, "%s", ase->str_arg2);
         getRegNum(ase->str_arg2, &ase->arg2);
+        if (ase->arg2 == WRONG_REG)
+            return ERR_REG_NAME;
         ase->code[ase->ip + 1] = ase->arg2;
         ase->ip += 2;
     }
+
+    return OK;
 }
 
-void runAsm(FILE* fin, FILE* fout)
+ErrEnum runAsm(FILE* fin, FILE* fout)
 {
     #define myScanf(fmt, ...)                               \
     (                                                       \
@@ -188,6 +153,10 @@ void runAsm(FILE* fin, FILE* fout)
         ase.str_code_pos += ase.pos_incr,                   \
         scanf_res                                           \
     )
+
+    #define myScanfExp(exp_res, fmt, ...)         \
+        if (myScanf(fmt, __VA_ARGS__) != exp_res) \
+            return ERR_CMD_ARG_FMT;
 
     #define ASM_CASE(command)                     \
         if (strcmp(ase.str_cmd, #command) == 0)   \
@@ -200,7 +169,7 @@ void runAsm(FILE* fin, FILE* fout)
         if (strcmp(ase.str_cmd, #command) == 0)   \
         {                                         \
             ase.code[ase.ip++] = CMD_ ## command; \
-            myScanf("%d", &ase.arg1);             \
+            myScanfExp(1, "%d", &ase.arg1);       \
             ase.code[ase.ip++] = ase.arg1;        \
             continue;                             \
         }
@@ -209,7 +178,7 @@ void runAsm(FILE* fin, FILE* fout)
         if (strcmp(ase.str_cmd, #command) == 0) \
         {                                       \
             ase.code[ase.ip] = CMD_ ## command; \
-            myScanf("%s", ase.str_arg1);        \
+            myScanfExp(1, "%s", ase.str_arg1);  \
             getArg(&ase);                       \
             continue;                           \
         }
@@ -218,30 +187,26 @@ void runAsm(FILE* fin, FILE* fout)
         if (strcmp(ase.str_cmd, #command) == 0)                   \
         {                                                         \
             ase.code[ase.ip++] = CMD_ ## command;                 \
-            myScanf("%s", ase.label);                             \
+            myScanfExp(1, "%s", ase.label);                       \
             if (ase.label[strlen(ase.label) - 1] == ':')          \
             {                                                     \
                 getLabelAdr(&ase.la, ase.label, &ase.arg1);       \
                 ase.code[ase.ip++] = ase.arg1;                    \
                 if (ase.arg1 == -1)                               \
-                {                                                 \
                     addFixup(&ase.ft, ase.ip - 1, ase.label);     \
-                }                                                 \
             }                                                     \
             else                                                  \
-            {                                                     \
                 ase.code[ase.ip++] = strtol(ase.label, NULL, 10); \
-            }                                                     \
             continue;                                             \
         }
 
-    assert(fin != NULL && fout != NULL);
+    myAssert(fin != NULL && fout != NULL);
 
     int scanf_res = 0;
     Asm ase = {};
-    asmCtor(&ase);
+    returnErr(asmCtor(&ase));
 
-    readFile(fin, &ase.str_code);
+    returnErr(readFile(fin, &ase.str_code));
     clearComments(ase.str_code);
 
     // printf("no comments:\n\n%s\n", ase.str_code);
@@ -252,7 +217,10 @@ void runAsm(FILE* fin, FILE* fout)
             break;
 
         if (ase.str_cmd[strlen(ase.str_cmd) - 1] == ':')
-            insertLabel(&ase.la, ase.ip, ase.str_cmd);
+        {
+            addLabel(&ase.la, ase.ip, ase.str_cmd);
+            continue;
+        }
         
         ASM_CASE(HLT)
         ASM_CASE(IN)
@@ -277,60 +245,63 @@ void runAsm(FILE* fin, FILE* fout)
         ASM_CASE_LABEL_ARG(JNE)
         ASM_CASE_LABEL_ARG(CALL)
 
-        // syntax error
+        asmDtor(&ase);
+        return ERR_INVAL_CMD;
     }
 
     fixup(ase.code, &ase.ft, &ase.la);
     ase.code[ase.ip] = CMD_END;
-    fwrite(ase.code, sizeof(int), ase.code_size, fout);
+
+    if (fwrite(ase.code, sizeof(int), ase.code_size, fout) < ase.code_size)
+        return ERR_IO;
+
     asmDtor(&ase);
 
-    #undef myScanf
+    #undef myScanfExp
     #undef ASM_CASE
     #undef ASM_CASE_ARG
     #undef ASM_CASE_COMPLEX_ARG
     #undef ASM_CASE_LABEL_ARG
+
+    return OK;
 }
 
-void initLabel(Label* label)
+void labelCtor(Label* label)
 {
     label->adr = -1;
     label->name = NULL;
 }
 
-void initLabelArray(LabelArray* la)
+ErrEnum labelArrayCtor(LabelArray* la)
 {
     la->max_labels = 10;
-    la->free = 0;
-    la->labels = (Label*)calloc(la->max_labels, sizeof(Label));
-    for (int i = 0; i < la->max_labels; ++i)
-    {
-        initLabel(la->labels + i);
-    }
-}
+    la->n_labels = 0;
 
-void labelDtor(Label* label)
-{
-    free(label->name);
+    la->labels = (Label*)calloc(la->max_labels, sizeof(Label));
+    la->name_buf = (char*)calloc(max_label_len * la->max_labels, sizeof(char));
+
+    if (la->labels == NULL || la->name_buf == NULL)
+        return ERR_MEM;
+
+    for (int i = 0; i < la->max_labels; ++i)
+        labelCtor(la->labels + i);
+
+    return OK;
 }
 
 void labelArrayDtor(LabelArray* la)
 {
-    for (int i = 0; i < la->max_labels; ++i)
-    {
-        labelDtor(la->labels + i);
-    }
     free(la->labels);
+    free(la->name_buf);
 }
 
-void insertLabel(LabelArray* la, int adr, char* name)
+void addLabel(LabelArray* la, int adr, char* name)
 {
-    int max_label_len = 20;
-    la->labels[la->free].adr = adr;
+    la->labels[la->n_labels].adr = adr;
 
-    la->labels[la->free].name = (char*)calloc(max_label_len, sizeof(char));
-    strcpy(la->labels[la->free].name, name);
-    ++(la->free);
+    la->labels[la->n_labels].name = la->name_buf + la->n_labels * max_label_len;
+    strncpy(la->labels[la->n_labels].name, name, max_label_len);
+    ++(la->n_labels);
 }
 
 void getLabelAdr(LabelArray* la, char* name, int* adr)
@@ -346,40 +317,36 @@ void getLabelAdr(LabelArray* la, char* name, int* adr)
     *adr = -1;
 }
 
-void initFixupElem(FixupElem* fe)
+void fixupElemCtor(FixupElem* fe)
 {
     fe->ip = 0;
     fe->name = NULL;
 }
 
-void initFixupTable(FixupTable* ft)
+ErrEnum fixupTableCtor(FixupTable* ft)
 {
     ft->max_elems = 100;
     ft->n_fixups = 0;
     ft->table = (FixupElem*)calloc(ft->max_elems, sizeof(FixupElem));
-}
+    ft->name_buf = (char*)calloc(ft->max_elems * max_label_len, sizeof(char));
+    if (ft->table == NULL || ft->name_buf == NULL)
+        return ERR_MEM;
 
-void fixupElemDtor(FixupElem* fe)
-{
-    free(fe->name);
+    return OK;
 }
 
 void fixupTableDtor(FixupTable* ft)
 {
-    for (int i = 0; i < ft->n_fixups; ++i)
-    {
-        fixupElemDtor(ft->table + i);
-    }
     free(ft->table);
+    free(ft->name_buf);
 }
 
 void addFixup(FixupTable* ft, int ip, char* name)
 {
-    int max_label_len = 20;
     ft->table[ft->n_fixups].ip = ip;
 
-    ft->table[ft->n_fixups].name = (char*)calloc(max_label_len, sizeof(char));
-    strcpy(ft->table[ft->n_fixups].name, name);
+    ft->table[ft->n_fixups].name = ft->name_buf + ft->n_fixups * max_label_len;
+    strncpy(ft->table[ft->n_fixups].name, name, max_label_len);
     ++(ft->n_fixups);
 }
 

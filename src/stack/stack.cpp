@@ -13,53 +13,7 @@ static const int capacity_increase = 2, capacity_decrease = 2, capacity_decrease
 static int hashFn(char* arr, int size);
 static void stUpdateHashFn(Stack* st);
 
-
-
-const char* stStrError(stErrCode error)
-{
-    #define DESCR_(err_code) case ERR_ ## err_code: \
-        return "ERR_" #err_code;
-
-    switch (error)
-    {
-        DESCR_(OK);
-        DESCR_(ASSERT)
-        DESCR_(STACK_UNDERFLOW)
-        DESCR_(NULL_STACK)
-        DESCR_(BAD_SIZE)
-        DESCR_(NOMEM)
-        DESCR_(POISON);
-        DESCR_(BAD_CANARY)
-        DESCR_(BAD_HASH)
-
-        default:
-            return "Unknown error";
-    }
-
-    #undef DESCR_
-}
-
-void handleErrFn(stErrCode error, const char* file, int line, const char* func)
-{
-    if (!error)
-        return;
-
-    printf("%sError: %s%s\nat %s:%d function: %s\n", RED_STR, stStrError(error), DEFAULT_STR, file, line, func);
-    
-    exit(error);
-}
-
-void stAssertFn(int expr, const char* str_expr, const char* file, int line, const char* func)
-{
-    if (expr)
-        return;
-
-    printf("%sAssrtion failed: %s%s\nat %s:%d function: %s\n", RED_STR, str_expr, DEFAULT_STR, file, line, func);
-
-    exit(ERR_ASSERT);
-}
-
-stErrCode stCtorNDebug(Stack* st, int capacity)
+ErrEnum stCtorNDebug(Stack* st, int capacity)
 {
     if (st == NULL)
         return ERR_NULL_STACK;
@@ -78,10 +32,10 @@ stErrCode stCtorNDebug(Stack* st, int capacity)
     stUpdateHash(st);
 
     returnErr(stErr(st));
-    return ERR_OK;
+    return OK;
 }
 
-stErrCode stCtorDebug(Stack* st, int capacity, const char* file_born, int line_born, const char* func_born)
+ErrEnum stCtorDebug(Stack* st, int capacity, const char* file_born, int line_born, const char* func_born)
 {
     if (st == NULL)
         return ERR_NULL_STACK;
@@ -107,7 +61,7 @@ stErrCode stCtorDebug(Stack* st, int capacity, const char* file_born, int line_b
     stUpdateHash(st);
 
     returnErr(stErr(st));
-    return ERR_OK;
+    return OK;
 }
 
 void stDtor(Stack* st)
@@ -197,7 +151,7 @@ static void stUpdateHashFn(Stack* st)
     )
 }
 
-stErrCode resize(Stack* st, int new_capacity)
+ErrEnum resize(Stack* st, int new_capacity)
 {
     stAssert(st != NULL);
 
@@ -205,7 +159,7 @@ stErrCode resize(Stack* st, int new_capacity)
     if (new_capacity == 0)
     {
         st->data = NULL;
-        return ERR_OK;
+        return OK;
     }
 
     StackElem* new_data = NULL;
@@ -237,10 +191,10 @@ stErrCode resize(Stack* st, int new_capacity)
         }
     )
 
-    return ERR_OK;
+    return OK;
 }
 
-stErrCode stPush(Stack* st, StackElem elem)
+ErrEnum stPush(Stack* st, StackElem elem)
 {
     returnErr(stErr(st));
 
@@ -253,10 +207,10 @@ stErrCode stPush(Stack* st, StackElem elem)
 
     stUpdateHash(st);
     returnErr(stErr(st));
-    return ERR_OK;
+    return OK;
 }
 
-stErrCode stPop(Stack* st, StackElem* elem)
+ErrEnum stPop(Stack* st, StackElem* elem)
 {
     returnErr(stErr(st));
 
@@ -277,10 +231,10 @@ stErrCode stPop(Stack* st, StackElem* elem)
 
     stUpdateHash(st);
     returnErr(stErr(st));
-    return ERR_OK;
+    return OK;
 }
 
-stErrCode stErr(Stack* st)
+ErrEnum stErr(Stack* st)
 {
     if (st == NULL)
     {
@@ -344,12 +298,17 @@ stErrCode stErr(Stack* st)
             return ERR_BAD_HASH;
     )
 
-    return ERR_OK;
+    return OK;
 }
 
 void stDumpFn(FILE* file, Stack* st, const char* file_name, int line, const char* func_name)
 {
-    #define PRINT_ERR(err) fprintf(file, "%sstDump(): %s%s\n", MAGENTA_STR, stStrError(ERR_ ## err), DEFAULT_STR)
+    #define PRINT_ERR(err)                                                    \
+    {                                                                         \
+        char* descr = NULL;                                                   \
+        getErrDescr(ERR_ ## err, &descr);                                     \
+        fprintf(file, "%sstDump(): %s%s\n", MAGENTA_STR, descr, DEFAULT_STR); \
+    }
     static const int max_n_elem = 20;
 
     if (file == NULL || file_name == NULL || func_name == NULL)

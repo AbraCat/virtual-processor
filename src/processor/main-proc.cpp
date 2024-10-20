@@ -1,18 +1,17 @@
 #include <stdio.h>
 
 #include <processor.h>
+#include <error.h>
 
 int main()
 {
-    const int MAX_CMDS  = 100;
+    FILE *fcode = fopen("txt/code.txt", "rb"), *fout = fopen("txt/output.txt", "w");
+    if (fcode == NULL || fout == NULL)
+        handleErr(ERR_FILE);
 
-    FILE *fin = fopen("txt/code.txt", "rb"), *fout = fopen("txt/output.txt", "w");
+    handleErr(runProc(fcode, stdin, fout));
 
-    int code[MAX_CMDS] = {};
-    fread(code, sizeof(int), MAX_CMDS, fin);
-    runProc(code, stdin, fout);
-
-    fclose(fin);
+    fclose(fcode);
     fclose(fout);
     return 0;
 }

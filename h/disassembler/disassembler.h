@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include <common.h>
+#include <error.h>
 
 struct Disasm
 {
@@ -11,13 +12,13 @@ struct Disasm
     int ip;
 };
 
-void printRegName(RegEnum reg_num, FILE* fout);
+ErrEnum printRegName(RegEnum reg_num, FILE* fout);
 
-void disasmCtor(Disasm* dis);
+ErrEnum disasmCtor(Disasm* dis);
 void disasmDtor(Disasm* dis);
 
-void printComplexArg(Disasm* dis, FILE* fout);
+ErrEnum printComplexArg(Disasm* dis, FILE* fout);
 
-void runDisasm(FILE* fin, FILE* fout);
+ErrEnum runDisasm(FILE* fin, FILE* fout);
 
 #endif // DISASSEMBLER_H

@@ -3,16 +3,20 @@
 #include <stdlib.h>
 
 #include <disassembler.h>
-#include <cmd.h>
+#include <common.h>
+#include <error.h>
 
 static const int MAX_CMDS = 100;
 const int MEM = 0x80, REG = 0x40, IMM = 0x20, MASK_CMD = 0x1F, MASK_ARGT = 0xE0;
 
-void printRegName(RegEnum reg_num, FILE* fout)
+ErrEnum printRegName(RegEnum reg_num, FILE* fout)
 {
-    #define REG_CASE(enum_elem)      \
-        case enum_elem:              \
-            fputs(#enum_elem, fout); \
+    myAssert(fout != NULL);
+
+    #define REG_CASE(enum_elem)                 \
+        case enum_elem:                         \
+            if (fputs(#enum_elem, fout) == EOF) \
+                return ERR_IO;                  \
             break;
 
     switch (reg_num)
@@ -21,18 +25,26 @@ void printRegName(RegEnum reg_num, FILE* fout)
         REG_CASE(BX)
         REG_CASE(CX)
         REG_CASE(DX)
+        REG_CASE(WRONG_REG)
 
         default:
-            break; // incorrect num
+            if (fputs("WRING_REG", fout) == EOF)
+                return ERR_IO;
+            break;
     }
+
+    return OK;
 
     #undef REG_CASE
 }
 
-void disasmCtor(Disasm* dis)
+ErrEnum disasmCtor(Disasm* dis)
 {
     dis->ip = 0;
     dis->code = (int*)calloc(MAX_CMDS, sizeof(int));
+    if (dis->code == NULL)
+        return ERR_MEM;
+    return OK;
 }
 
 void disasmDtor(Disasm* dis)
@@ -40,7 +52,7 @@ void disasmDtor(Disasm* dis)
     free(dis->code);
 }
 
-void printComplexArg(Disasm* dis, FILE* fout)
+ErrEnum printComplexArg(Disasm* dis, FILE* fout)
 {
     /*
     push:
@@ -59,11 +71,7 @@ void printComplexArg(Disasm* dis, FILE* fout)
    int argt = dis->code[dis->ip - 1] & MASK_ARGT, mem = 0;
 
     if ((argt & (IMM | REG | MEM)) == 0 || (argt & (IMM | REG | MEM)) == MEM)
-    {
-        // incorrect code
-        fprintf(fout, "Incorrect code");
-        return;
-    }
+        return ERR_INSTR_ARG_FMT;
 
     if (argt & MEM)
     {
@@ -72,7 +80,7 @@ void printComplexArg(Disasm* dis, FILE* fout)
     }
 
     if (argt & REG)
-        printRegName((RegEnum)(dis->code[dis->ip++]), fout);
+        returnErr(printRegName((RegEnum)(dis->code[dis->ip++]), fout));
 
     if ((argt & REG) && (argt & IMM))
         putc('+', fout);
@@ -83,10 +91,10 @@ void printComplexArg(Disasm* dis, FILE* fout)
     if (mem)
         putc(']', fout);
 
-    return;
+    return OK;
 }
 
-void runDisasm(FILE* fin, FILE* fout)
+ErrEnum runDisasm(FILE* fin, FILE* fout)
 {
     #define DISASM_CASE(command)        \
         case CMD_ ## command:           \
@@ -106,21 +114,24 @@ void runDisasm(FILE* fin, FILE* fout)
             putc('\n', fout);                     \
             break;
 
-    assert(fin != NULL && fout != NULL);
+    myAssert(fin != NULL && fout != NULL);
 
     Disasm dis = {};
-    disasmCtor(&dis);
+    returnErr(disasmCtor(&dis));
 
     fread(dis.code, sizeof(int), MAX_CMDS, fin);
-    
+
     while (1)
     {
         if (dis.ip >= MAX_CMDS)
-            return;
+            return ERR_IP_BOUNDARY;
+
         switch (dis.code[dis.ip++] & MASK_CMD)
         {
             case CMD_END:
-                return;
+                disasmDtor(&dis);
+                return OK;
+
             DISASM_CASE(HLT)
             DISASM_CASE(IN)
             DISASM_CASE(OUT)
@@ -145,11 +156,13 @@ void runDisasm(FILE* fin, FILE* fout)
             DISASM_CASE_COMPLEX_ARG(POP)
             
             default:
-                break;
+                disasmDtor(&dis);
+                return ERR_INVAL_INSTR;
         }
     }
 
     disasmDtor(&dis);
+    return OK;
 
     #undef DISASM_CASE
     #undef DISASM_CASE_ARG

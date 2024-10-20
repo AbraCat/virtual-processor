@@ -1,15 +1,18 @@
-.PHONY: all clean run
+.PHONY: all clean proc asm disasm
 
 all: exe/proc.exe exe/asm.exe
 
 # docs:
 # 	@doxygen Doxyfile
 
-aaa: 
-	$(PROC_O_FILES)
+proc: all
+	@exe/proc.exe
+	
+asm: all
+	@exe/asm.exe
 
-run: all
-# exe/main.exe -c -r
+disasm: all
+	@exe/asm.exe -d
 
 clean:
 	@rmdir d /s /q

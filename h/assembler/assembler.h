@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include <common.h>
+#include <error.h>
 
 struct Label
 {
@@ -13,7 +14,8 @@ struct Label
 struct LabelArray
 {
     struct Label* labels;
-    int free, max_labels;
+    int n_labels, max_labels;
+    char* name_buf;
 };
 
 struct FixupElem
@@ -25,6 +27,7 @@ struct FixupTable
 {
     FixupElem* table;
     int n_fixups, max_elems;
+    char* name_buf;
 };
 
 struct Asm
@@ -38,33 +41,24 @@ struct Asm
     int buffer_size, code_size;
 };
 
-
-void runAsm(FILE* fin, FILE* fout);
+ErrEnum runAsm(FILE* fin, FILE* fout);
 void getRegNum(char* str_name, int* num);
-void getArg(Asm*);
-
-int fileSize(FILE *file, long *siz);
-int readFile(FILE* file, char** bufptr);
+ErrEnum getArg(Asm*);
 void clearComments(char* str);
 
-
-void asmCtor(Asm* ase);
+ErrEnum asmCtor(Asm* ase);
 void asmDtor(Asm* ase);
 
-void initLabel(Label* label);
-void initLabelArray(LabelArray* la);
-void labelDtor(Label* label);
+void labelCtor(Label* label);
+ErrEnum labelArrayCtor(LabelArray* la);
 void labelArrayDtor(LabelArray* la);
 
-void insertLabel(LabelArray* la, int adr, char* name);
+void addLabel(LabelArray* la, int adr, char* name);
 void getLabelAdr(LabelArray* la, char* name, int* adr);
 
-
-void initFixupElem(FixupElem* fe);
-void initFixupTable(FixupTable* ft);
-void fixupElemDtor(FixupElem* fe);
+void fixupElemCtor(FixupElem* fe);
+ErrEnum fixupTableCtor(FixupTable* ft);
 void fixupTableDtor(FixupTable* ft);
-
 
 void addFixup(FixupTable* ft, int ip, char* name);
 void fixup(int* code, FixupTable* ft, LabelArray* la);

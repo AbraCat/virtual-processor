@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stack.h>
 
+#include <error.h>
+
 const int n_regs = 4;
 
 struct Proc
@@ -16,11 +18,11 @@ struct Proc
     int ram_size;
 };
 
-void procCtor(Proc* prc, int* code);
+ErrEnum procCtor(Proc* prc);
 void procDtor(Proc* prc);
 
-void runProc(int* code, FILE* fin, FILE* fout);
-void getPopDestination(Proc* prc, int** dest);
-void drawRam(Proc* prc);
+ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout);
+ErrEnum getPopDestination(Proc* prc, int** dest);
+ErrEnum drawRam(Proc* prc);
 
 #endif // PROCESSOR_H

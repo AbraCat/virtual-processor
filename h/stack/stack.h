@@ -1,6 +1,8 @@
 #ifndef STACK_H
 #define STACK_H
 
+#include <error.h>
+
 #define ST_NDEBUG
 
 #ifdef ST_NDEBUG
@@ -11,18 +13,7 @@
 #define ST_USE_HASH
 #endif // ST_NDEBUG
 
-
-
-#define handleErr(expr) handleErrFn(expr, __FILE__, __LINE__, __FUNCTION__)
 #define stDump(file, st) stDumpFn(file, st, __FILE__, __LINE__, __FUNCTION__)
-
-#define returnErr(expr)      \
-{                            \
-    stErrCode error = expr;  \
-    if (error) return error; \
-}
-
-
 
 #ifdef ST_NDEBUG
 
@@ -98,36 +89,17 @@ struct Stack
     )
 };
 
-enum stErrCode
-{
-    ERR_OK,
-    ERR_ASSERT,
-    ERR_STACK_UNDERFLOW,
-    ERR_NULL_STACK,
-    ERR_BAD_SIZE,
-    ERR_NOMEM,
-    ERR_POISON,
-    ERR_BAD_CANARY,
-    ERR_BAD_HASH
-};
-
-
-
-const char* stStrError(stErrCode error);
-void handleErrFn(stErrCode error, const char* file, int line, const char* func);
-void stAssertFn(int expr, const char* str_expr, const char* file, int line, const char* func);
-
-stErrCode stCtorNDebug(Stack* st, int capacity);
-stErrCode stCtorDebug(Stack* st, int capacity, const char* file_name, int line_born, const char* func_born);
+ErrEnum stCtorNDebug(Stack* st, int capacity);
+ErrEnum stCtorDebug(Stack* st, int capacity, const char* file_name, int line_born, const char* func_born);
 
 void stDtor(Stack* st);
 
-stErrCode stPush(Stack* st, StackElem elem);
-stErrCode stPop(Stack* st, StackElem* elem);
+ErrEnum stPush(Stack* st, StackElem elem);
+ErrEnum stPop(Stack* st, StackElem* elem);
 
-stErrCode resize(Stack* st, int new_capacity);
+ErrEnum resize(Stack* st, int new_capacity);
 
-stErrCode stErr(Stack* st);
+ErrEnum stErr(Stack* st);
 void stDumpFn(FILE* file, Stack* st, const char* file_name, int line, const char* func_name);
 
 #endif //STACK_H

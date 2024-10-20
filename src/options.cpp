@@ -28,17 +28,20 @@ struct Option* optByName(struct Option* opts, int n_opts, const char* sh_name)
     return (strcmp(opts[rgt].sh_name, sh_name) == 0) ? opts + rgt : NULL;
 }
 
-void testOpts(struct Option* opts, int n_opts)
+ErrEnum testOpts(struct Option* opts, int n_opts)
 {
     struct Option *opt = NULL;
     for (int j = 0; j < n_opts; ++j)
     {
         opt = optByName(opts, n_opts, opts[j].sh_name);
+        if (opt == NULL)
+            return ERR_INVAL_OPT;
         printf("option %s trig %d str_arg %s int_arg %d\n", opt->sh_name, opt->trig, opt->str_arg, opt->int_arg);
     }
+    return OK;
 }
 
-int parseOpts(int argc, const char* argv[], struct Option* opts, int n_opts)
+ErrEnum parseOpts(int argc, const char* argv[], struct Option* opts, int n_opts)
 {
     qsort(opts, n_opts, sizeof(struct Option), (voidcmp_f)optcmp);
 
@@ -76,7 +79,7 @@ int parseOpts(int argc, const char* argv[], struct Option* opts, int n_opts)
             }
 
             if (argv[i][opts[j].l_name_len] != '=' || argv[i][opts[j].l_name_len + 1] == '\0')
-                return EINVAL;
+                return ERR_OPT_ARG_FMT;
 
             trig = opts[j].trig = 1;
             opts[j].str_arg = argv[i] + opts[j].l_name_len + 1;
@@ -84,7 +87,7 @@ int parseOpts(int argc, const char* argv[], struct Option* opts, int n_opts)
             break;
         }
         if (!trig)
-            return EINVAL;
+            return ERR_INVAL_OPT;
     }
-    return 0;
+    return OK;
 }

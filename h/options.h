@@ -1,6 +1,8 @@
 #ifndef OPTIONS_H
 #define OPTIONS_H
 
+#include <error.h>
+
 struct Option
 {
     const char *sh_name, *l_name;
@@ -13,8 +15,8 @@ struct Option
 };
 
 int optcmp(struct Option* opt1, struct Option* opt2);
-int parseOpts(int argc, const char* argv[], struct Option* opts, int n_opts);
 struct Option* optByName(struct Option* opts, int n_opts, const char* sh_name);
-void testOpts(struct Option* opts, int n_opts);
+ErrEnum parseOpts(int argc, const char* argv[], struct Option* opts, int n_opts);
+ErrEnum testOpts(struct Option* opts, int n_opts);
 
 #endif //OPTIONS_H
