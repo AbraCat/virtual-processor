@@ -11,7 +11,6 @@ int readCode(FILE* fin, int* code, int max_cmds)
     for (ip = 0; ip < max_cmds - 1 && fscanf(fin, "%d", code + ip) != EOF; ++ip);
     code[ip] = CMD_END;
 
-    fclose(fin);
     return 0;
 }
 
@@ -23,7 +22,7 @@ int writeCode(FILE* fout, int* code, int max_cmds)
     {
         fprintf(fout, "%d ", code[ip]);
     }
+    putc('\n', fout);
 
-    fclose(fout);
     return 0;
 }

@@ -85,19 +85,12 @@ void runProc(int* code, FILE* fin, FILE* fout)
 
     while (1)
     {
-        // printf("ip = %d\n", prc.ip);
-        if (prc.ip == MAX_CMDS || code[prc.ip] == CMD_END)
+        if (prc.ip == MAX_CMDS || code[prc.ip] == CMD_END) // check abyssal jumps
         {
             return;
         }
         prc.cmd = code[prc.ip] & MASK_CMD;
         prc.argt = code[prc.ip++] & MASK_ARGT;
-        // printf("ip: %d regs: ", prc.ip);
-        //     for (int i = 0; i < 4; ++ i)
-        //     {
-        //         printf("%d ", prc.reg[i]);
-        //     }
-        //     putchar('\n');
         switch(prc.cmd)
         {
             case CMD_HLT:
@@ -178,7 +171,7 @@ void runProc(int* code, FILE* fin, FILE* fout)
                         COLOR_CASE(BLUE)
                         COLOR_CASE(MAGENTA)
                         COLOR_CASE(CYAN)
-                        COLOR_CASE(WHITE)
+                        COLOR_CASE(WHITE) // get rid of cases
 
                         putchar(prc.ram[(i * prc.ram_size + j) * 2]);
                         putchar(prc.ram[(i * prc.ram_size + j) * 2]);

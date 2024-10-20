@@ -86,6 +86,5 @@ int parseOpts(int argc, const char* argv[], struct Option* opts, int n_opts)
         if (!trig)
             return EINVAL;
     }
-
     return 0;
 }

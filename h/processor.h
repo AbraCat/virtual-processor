@@ -4,11 +4,14 @@
 #include <stdio.h>
 #include <stack.h>
 
+const int n_regs = 4;
+
 struct Proc
 {
     Stack st, ret;
     int ip, cmd, argt, arg1, arg2;
-    int *code, *reg, *ram;
+    int *code, *ram, *reg;
+    // int reg[n_regs];
 
     int ram_size;
 };

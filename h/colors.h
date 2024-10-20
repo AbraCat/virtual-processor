@@ -13,15 +13,15 @@ static const char DEFAULT_STR[] = "\x1b[39m";
 
 enum Colors
 {
-    DEFAULT,
-    BLACK,
-    RED,
-    GREEN,
-    YELLOW,
-    BLUE,
-    MAGENTA,
-    CYAN,
-    WHITE,
+    DEFAULT = 0,
+    BLACK   = 1,
+    RED     = 2,
+    GREEN   = 3,
+    YELLOW  = 4,
+    BLUE    = 5,
+    MAGENTA = 6,
+    CYAN    = 7,
+    WHITE   = 8,
 };
 
 #endif // COLORS_H

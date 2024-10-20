@@ -3,13 +3,7 @@
 
 #include <stdio.h>
 
-enum Reg
-{
-    AX = 0,
-    BX = 1,
-    CX = 2,
-    DX = 3,
-};
+#include <common.h>
 
 struct Label
 {

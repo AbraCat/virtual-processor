@@ -187,7 +187,7 @@ void runAsm(FILE* fin, FILE* fout)
         scanf_res = sscanf(ase.str_code + ase.str_code_pos, \
         fmt "%n", __VA_ARGS__, &ase.pos_incr),              \
         ase.str_code_pos += ase.pos_incr,                   \
-        scanf_res \
+        scanf_res                                           \
     )
 
     #define ASM_CASE(command)                     \
@@ -212,6 +212,7 @@ void runAsm(FILE* fin, FILE* fout)
             ase.code[ase.ip] = CMD_ ## command; \
             myScanf("%s", ase.str_arg1);        \
             getArg(&ase);                       \
+            continue;                           \
         }
 
     #define ASM_CASE_LABEL_ARG(command)                           \
@@ -232,6 +233,7 @@ void runAsm(FILE* fin, FILE* fout)
             {                                                     \
                 ase.code[ase.ip++] = strtol(ase.label, NULL, 10); \
             }                                                     \
+            continue;                                             \
         }
 
     assert(fin != NULL && fout != NULL);
@@ -242,16 +244,16 @@ void runAsm(FILE* fin, FILE* fout)
 
     readFile(fin, &ase.str_code);
     clearComments(ase.str_code);
+
+    // printf("no comments:\n\n%s\n", ase.str_code);
     
     while (1)
     {
         if (myScanf("%s", ase.str_cmd) == EOF)
             break;
 
-        if (ase.str_cmd[ase.arg2 - 1] == ':')
-        {
+        if (ase.str_cmd[strlen(ase.str_cmd) - 1] == ':')
             insertLabel(&ase.la, ase.ip, ase.str_cmd);
-        }
         
         ASM_CASE(HLT)
         ASM_CASE(IN)
@@ -278,13 +280,17 @@ void runAsm(FILE* fin, FILE* fout)
 
         // syntax error
     }
-
+    
     fixup(ase.code, &ase.ft, &ase.la);
     ase.code[ase.ip] = CMD_END;
     writeCode(fout, ase.code, ase.ip);
     asmDtor(&ase);
 
+    #undef myScanf
     #undef ASM_CASE
+    #undef ASM_CASE_ARG
+    #undef ASM_CASE_COMPLEX_ARG
+    #undef ASM_CASE_LABEL_ARG
 }
 
 void initLabel(Label* label)
