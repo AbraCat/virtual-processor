@@ -1,7 +1,6 @@
 #include <stdio.h>
 
 #include <options.h>
-#include <spuio.h>
 #include <processor.h>
 #include <assembler.h>
 #include <disassembler.h>
@@ -12,6 +11,7 @@ int mainDisasm();
 
 int main(int argc, const char* argv[])
 {
+
     static const int n_opts = 3;
     Option opts[] = {{"-r", "--run"}, {"-c", "--compile"}, {"-d", "--decompile"}};
 
@@ -40,12 +40,12 @@ int main(int argc, const char* argv[])
 
 int mainProc()
 {
-    #define MAX_CMDS 100
+    const int MAX_CMDS  = 100;
 
-    FILE *fin = fopen("txt/code.txt", "r"), *fout = fopen("txt/output.txt", "w");
+    FILE *fin = fopen("txt/code.txt", "rb"), *fout = fopen("txt/output.txt", "w");
 
     int code[MAX_CMDS] = {};
-    readCode(fin, code, MAX_CMDS);
+    fread(code, sizeof(int), MAX_CMDS, fin);
     runProc(code, stdin, fout);
 
     fclose(fin);
@@ -55,7 +55,7 @@ int mainProc()
 
 int mainAsm()
 {
-    FILE *fin = fopen("txt/asm.txt", "r"), *fout = fopen("txt/code.txt", "w");
+    FILE *fin = fopen("txt/asm.txt", "r"), *fout = fopen("txt/code.txt", "wb");
 
     runAsm(fin, fout);
 
@@ -66,7 +66,7 @@ int mainAsm()
 
 int mainDisasm()
 {
-    FILE *fin = fopen("txt/code.txt", "r"), *fout = fopen("txt/asm.txt", "w");
+    FILE *fin = fopen("txt/code.txt", "rb"), *fout = fopen("txt/asm.txt", "w");
 
     runDisasm(fin, fout);
 

@@ -10,8 +10,8 @@ struct Proc
 {
     Stack st, ret;
     int ip, cmd, argt, arg1, arg2;
-    int *code, *ram, *reg;
-    // int reg[n_regs];
+    int *code, *ram;
+    int reg[n_regs];
 
     int ram_size;
 };
@@ -20,6 +20,7 @@ void procCtor(Proc* prc, int* code);
 void procDtor(Proc* prc);
 
 void runProc(int* code, FILE* fin, FILE* fout);
-void analArg(Proc* prc, int** arg);
+void getPopDestination(Proc* prc, int** dest);
+void drawRam(Proc* prc);
 
 #endif // PROCESSOR_H

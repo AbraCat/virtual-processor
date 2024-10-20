@@ -5,7 +5,6 @@
 
 #include <assembler.h>
 #include <cmd.h>
-#include <spuio.h>
 
 const int MEM = 0x80, REG = 0x40, IMM = 0x20;
 
@@ -280,10 +279,10 @@ void runAsm(FILE* fin, FILE* fout)
 
         // syntax error
     }
-    
+
     fixup(ase.code, &ase.ft, &ase.la);
     ase.code[ase.ip] = CMD_END;
-    writeCode(fout, ase.code, ase.ip);
+    fwrite(ase.code, sizeof(int), ase.code_size, fout);
     asmDtor(&ase);
 
     #undef myScanf

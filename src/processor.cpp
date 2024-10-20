@@ -15,7 +15,6 @@ void procCtor(Proc* prc, int* code)
     stCtor(&prc->st, 0);
     stCtor(&prc->ret, 0);
     prc->ip = prc->cmd = prc->argt = prc->arg1 = prc->arg2 = 0;
-    prc->reg = (int*)calloc(4, sizeof(int));
     prc->code = code;
     prc->ram = (int*)calloc(prc->ram_size * prc->ram_size * 2, sizeof(int));
 }
@@ -27,7 +26,7 @@ void procDtor(Proc* prc)
     free(prc->ram);
 }
 
-void analArg(Proc* prc, int** arg)
+void getPopDestination(Proc* prc, int** dest)
 {
     /*
     push:
@@ -45,13 +44,13 @@ void analArg(Proc* prc, int** arg)
 
     if ((prc->argt & (IMM | REG | MEM)) == 0 || (prc->argt & (IMM | REG | MEM)) == MEM)
     {
-        *arg = NULL;
+        *dest = NULL;
         return;
     }
 
     if ((prc->argt & (IMM | REG | MEM)) == REG)
     {
-        *arg = prc->reg + prc->code[prc->ip++];
+        *dest = prc->reg + prc->code[prc->ip++];
         return;
     }
 
@@ -66,13 +65,13 @@ void analArg(Proc* prc, int** arg)
     }
     if (prc->argt & MEM)
     {
-        *arg = prc->ram + argv;
+        *dest = prc->ram + argv;
         return;
     }
 
     // push
     prc->arg1 = argv;
-    *arg = &prc->arg1;
+    *dest = &prc->arg1;
     return;
 }
 
@@ -85,7 +84,7 @@ void runProc(int* code, FILE* fin, FILE* fout)
 
     while (1)
     {
-        if (prc.ip == MAX_CMDS || code[prc.ip] == CMD_END) // check abyssal jumps
+        if (prc.ip < 0 || prc.ip >=  MAX_CMDS || code[prc.ip] == CMD_END)
         {
             return;
         }
@@ -129,7 +128,7 @@ void runProc(int* code, FILE* fin, FILE* fout)
             case CMD_PUSH:
             {
                 int *arg = NULL;
-                analArg(&prc, &arg);
+                getPopDestination(&prc, &arg);
                 if (arg == NULL)
                 {
                     fprintf(fout, "Invalid argument type: %d\n", prc.argt);
@@ -141,7 +140,7 @@ void runProc(int* code, FILE* fin, FILE* fout)
             case CMD_POP:
             {
                 int *arg = NULL;
-                analArg(&prc, &arg);
+                getPopDestination(&prc, &arg);
                 if (arg == NULL)
                 {
                     fprintf(fout, "Invalid argument type: %d\n", prc.argt);
@@ -151,35 +150,7 @@ void runProc(int* code, FILE* fin, FILE* fout)
                 break;
             }
             case CMD_DRAW:
-                for (int i = 0; i < prc.ram_size; ++i)
-                {
-                    for (int j = 0; j < prc.ram_size; ++j)
-                    {
-                        #define COLOR_CASE(color)                                                  \
-                        if (prc.ram[(i * prc.ram_size + j) * 2 + 1] == color)                      \
-                        {                                                                          \
-                            printf("%s%c%c%s", color ## _STR, prc.ram[(i * prc.ram_size + j) * 2], \
-                            prc.ram[(i * prc.ram_size + j) * 2], DEFAULT_STR);                     \
-                            continue;                                                              \
-                        }
-
-                        COLOR_CASE(DEFAULT)
-                        COLOR_CASE(BLACK)
-                        COLOR_CASE(RED)
-                        COLOR_CASE(GREEN)
-                        COLOR_CASE(YELLOW)
-                        COLOR_CASE(BLUE)
-                        COLOR_CASE(MAGENTA)
-                        COLOR_CASE(CYAN)
-                        COLOR_CASE(WHITE) // get rid of cases
-
-                        putchar(prc.ram[(i * prc.ram_size + j) * 2]);
-                        putchar(prc.ram[(i * prc.ram_size + j) * 2]);
-
-                        #undef COLOR_CASE
-                    }
-                    putc('\n', stdout);
-                }
+                drawRam(&prc);
                 break;
             case CMD_JMP:
                 prc.ip = code[prc.ip];
@@ -218,4 +189,17 @@ void runProc(int* code, FILE* fin, FILE* fout)
     }
 
     procDtor(&prc);
+}
+
+void drawRam(Proc* prc)
+{
+    for (int i = 0; i < prc->ram_size; ++i)
+    {
+        for (int j = 0; j < prc->ram_size; ++j)
+        {
+            printf("\x1b[3%cm%c%c\x1b[39m", '0' + prc->ram[(i * prc->ram_size + j) * 2 + 1], 
+            prc->ram[(i * prc->ram_size + j) * 2], prc->ram[(i * prc->ram_size + j) * 2]);
+        }
+        putc('\n', stdout);
+    }
 }

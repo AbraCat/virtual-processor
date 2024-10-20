@@ -4,7 +4,6 @@
 
 #include <disassembler.h>
 #include <cmd.h>
-#include <spuio.h>
 
 static const int MAX_CMDS = 100;
 const int MEM = 0x80, REG = 0x40, IMM = 0x20, MASK_CMD = 0x1F, MASK_ARGT = 0xE0;
@@ -112,7 +111,7 @@ void runDisasm(FILE* fin, FILE* fout)
     Disasm dis = {};
     disasmCtor(&dis);
 
-    readCode(fin, dis.code, MAX_CMDS);
+    fread(dis.code, sizeof(int), MAX_CMDS, fin);
     
     while (1)
     {
