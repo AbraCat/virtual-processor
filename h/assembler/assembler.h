@@ -32,7 +32,8 @@ struct FixupTable
 
 struct Asm
 {
-    char *str_code, *str_cmd, *str_arg1, *str_arg2, *label, *chr1;
+    char *str_code, *str_cmd, *str_arg1, *str_arg2, *label;
+    char *chr1;
     int *code;
     int ip, str_code_pos, pos_incr, n_args, arg1, arg2;
     LabelArray la;

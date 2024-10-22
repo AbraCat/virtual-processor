@@ -9,35 +9,6 @@
 static const int MAX_CMDS = 100;
 const int MEM = 0x80, REG = 0x40, IMM = 0x20, MASK_CMD = 0x1F, MASK_ARGT = 0xE0;
 
-ErrEnum printRegName(RegEnum reg_num, FILE* fout)
-{
-    myAssert(fout != NULL);
-
-    #define REG_CASE(enum_elem)                 \
-        case enum_elem:                         \
-            if (fputs(#enum_elem, fout) == EOF) \
-                return ERR_IO;                  \
-            break;
-
-    switch (reg_num)
-    {
-        REG_CASE(AX)
-        REG_CASE(BX)
-        REG_CASE(CX)
-        REG_CASE(DX)
-        REG_CASE(WRONG_REG)
-
-        default:
-            if (fputs("WRING_REG", fout) == EOF)
-                return ERR_IO;
-            break;
-    }
-
-    return OK;
-
-    #undef REG_CASE
-}
-
 ErrEnum disasmCtor(Disasm* dis)
 {
     dis->ip = 0;

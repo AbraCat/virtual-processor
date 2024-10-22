@@ -1,9 +1,13 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <stdio.h>
+
+#include <error.h>
+
 enum RegEnum
 {
-    WRONG_REG = -1,
+    INVAL_REG = -1,
     AX = 0,
     BX = 1,
     CX = 2,
@@ -34,5 +38,7 @@ enum CmdCode
     CMD_RET   = 18,
     CMD_DRAW  = 19,
 };
+
+ErrEnum printRegName(RegEnum reg_num, FILE* fout);
 
 #endif // COMMON_H

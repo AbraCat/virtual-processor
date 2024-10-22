@@ -12,8 +12,6 @@ struct Disasm
     int ip;
 };
 
-ErrEnum printRegName(RegEnum reg_num, FILE* fout);
-
 ErrEnum disasmCtor(Disasm* dis);
 void disasmDtor(Disasm* dis);
 

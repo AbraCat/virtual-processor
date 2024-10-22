@@ -6,21 +6,21 @@
 #include <colors.h>
 #include <error.h>
 
-static const int MAX_CMDS = 100;
+static const int MAX_CMDS = 100, ram_size = 10;
 const int MEM = 0x80, REG = 0x40, IMM = 0x20, MASK_CMD = 0x1F, MASK_ARGT = 0xE0;
 
 ErrEnum procCtor(Proc* prc)
 {
-    prc->ram_size = 5;
-
     stCtor(&prc->st, 0);
     stCtor(&prc->ret, 0);
     prc->ip = prc->cmd = prc->argt = prc->arg1 = prc->arg2 = 0;
     prc->code = (int*)calloc(MAX_CMDS, sizeof(int));
-    prc->ram = (int*)calloc(prc->ram_size * prc->ram_size * 2, sizeof(int));
+    prc->ram = (int*)calloc(ram_size * ram_size * 2, sizeof(int));
 
     if (prc->code == NULL || prc->ram == NULL)
         return ERR_MEM;
+
+    initRam(prc);
 
     return OK;
 }
@@ -62,13 +62,9 @@ ErrEnum getPopDestination(Proc* prc, int** dest)
 
     int argv = 0;
     if (prc->argt & REG)
-    {
         argv += prc->reg[prc->code[prc->ip++]];
-    }
     if (prc->argt & IMM)
-    {
         argv += prc->code[prc->ip++];
-    }
     if (prc->argt & MEM)
     {
         *dest = prc->ram + argv;
@@ -95,6 +91,7 @@ ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout)
         if (prc.ip < 0 || prc.ip >= MAX_CMDS)
             return ERR_IP_BOUNDARY;
          
+        // printf("ip = %d\n", prc.ip);
         if (code[prc.ip] == CMD_END)
         {
             procDtor(&prc);
@@ -130,7 +127,7 @@ ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout)
             CASE_ARITHM_OP(DIV, /)
 
             case CMD_DUMP:
-                stDump(fout, &prc.st);
+                prcDump(fout, &prc);
                 break;
             case CMD_PUSH:
             {
@@ -147,7 +144,7 @@ ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout)
                 break;
             }
             case CMD_DRAW:
-                returnErr(drawRam(&prc));
+                returnErr(drawRam(&prc, stdout));
                 break;
             case CMD_JMP:
                 prc.ip = code[prc.ip];
@@ -190,18 +187,54 @@ ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout)
     return OK;
 }
 
-ErrEnum drawRam(Proc* prc)
+void initRam(Proc* prc)
 {
+    myAssert(prc != NULL);
+
     int adr = 0;
-    for (int i = 0; i < prc->ram_size; ++i)
+    for (int i = 0; i < ram_size; ++i)
     {
-        for (int j = 0; j < prc->ram_size; ++j)
+        for (int j = 0; j < ram_size; ++j)
         {
-            adr = 2 * (i * prc->ram_size + j);
-            printf("\x1b[3%cm%c%c\x1b[39m", '0' + prc->ram[adr + 1], prc->ram[adr], prc->ram[adr]);
+            adr = 2 * (i * ram_size + j);
+            prc->ram[adr] = '.';
+            prc->ram[adr + 1] = 9;
         }
-        putc('\n', stdout);
+    }
+    return;
+}
+
+ErrEnum drawRam(Proc* prc, FILE* fout)
+{
+    myAssert(prc != NULL && fout != NULL);
+
+    int adr = 0;
+    for (int i = 0; i < ram_size; ++i)
+    {
+        for (int j = 0; j < ram_size; ++j)
+        {
+            adr = 2 * (i * ram_size + j);
+            fprintf(fout, "\x1b[3%cm%c%c\x1b[39m", '0' + prc->ram[adr + 1], prc->ram[adr], prc->ram[adr]);
+        }
+        putc('\n', fout);
     }
 
     return OK;
+}
+
+void prcDump(FILE* fout, Proc* prc)
+{
+    myAssert(prc != NULL || fout != NULL);
+
+    fprintf(fout, "Processor [0x%p]\n\n", prc);
+    fprintf(fout, "ip: %d\n\n", prc->ip);
+    for (int reg_num = 0; reg_num < n_regs; ++reg_num)
+    {
+        printRegName((RegEnum)reg_num, fout);
+        fprintf(fout, ": %d\n", prc->reg[reg_num]);
+    }
+    putc('\n', fout);
+    stDump(fout, &prc->st);
+    fputs("RAM:\n\n", fout);
+    drawRam(prc, fout);
 }

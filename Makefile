@@ -1,17 +1,17 @@
-.PHONY: all clean proc asm disasm
+.PHONY: all clean prc asm dis
 
 all: exe/proc.exe exe/asm.exe
 
 # docs:
 # 	@doxygen Doxyfile
 
-proc: all
+prc: all
 	@exe/proc.exe
 	
 asm: all
 	@exe/asm.exe
 
-disasm: all
+dis: all
 	@exe/asm.exe -d
 
 clean:

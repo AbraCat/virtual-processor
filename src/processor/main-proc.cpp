@@ -9,7 +9,7 @@ int main()
     if (fcode == NULL || fout == NULL)
         handleErr(ERR_FILE);
 
-    handleErr(runProc(fcode, stdin, fout));
+    handleErr(runProc(fcode, stdin, stdout));
 
     fclose(fcode);
     fclose(fout);

@@ -28,7 +28,9 @@ void clearComments(char* str)
 
 ErrEnum asmCtor(Asm* ase)
 {
-    #define ALLOC_BUF(var) ase->var = (char*)calloc(ase->buffer_size, sizeof(char))
+    #define ALLOC_BUF(var)                                        \
+        ase->var = (char*)calloc(ase->buffer_size, sizeof(char)); \
+        if (ase->var == NULL) return ERR_MEM;
 
     ase->buffer_size = 30;
     ase->code_size = 100;
@@ -37,8 +39,8 @@ ErrEnum asmCtor(Asm* ase)
     ALLOC_BUF(str_arg1);
     ALLOC_BUF(str_arg2);
     ALLOC_BUF(label);
-    ALLOC_BUF(chr1);
 
+    ase->chr1 = NULL;
     ase->ip = ase->n_args = ase->arg1 = ase->arg2 = 
     ase->str_code_pos = ase->pos_incr = 0;
 
@@ -81,7 +83,7 @@ void getRegNum(char* str_name, int* num)
     REG_CASE(CX)
     REG_CASE(DX)
 
-    *num = WRONG_REG;
+    *num = INVAL_REG;
 
     #undef REG_CASE
 }
@@ -116,7 +118,7 @@ ErrEnum getArg(Asm* ase)
         ase->code[ase->ip] |= REG | IMM;
         *(ase->chr1) = '\0';
         getRegNum(ase->str_arg1, &ase->arg1);
-        if (ase->arg1 == WRONG_REG)
+        if (ase->arg1 == INVAL_REG)
             return ERR_REG_NAME;
         ase->code[ase->ip + 1] = ase->arg1;
         ase->code[ase->ip + 2] = ase->arg2;
@@ -135,7 +137,7 @@ ErrEnum getArg(Asm* ase)
         ase->code[ase->ip] |= REG;
         sscanf(ase->str_arg1, "%s", ase->str_arg2);
         getRegNum(ase->str_arg2, &ase->arg2);
-        if (ase->arg2 == WRONG_REG)
+        if (ase->arg2 == INVAL_REG)
             return ERR_REG_NAME;
         ase->code[ase->ip + 1] = ase->arg2;
         ase->ip += 2;
