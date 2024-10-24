@@ -38,7 +38,7 @@ ErrEnum testOpts(struct Option* opts, int n_opts)
             return ERR_INVAL_OPT;
         printf("option %s trig %d str_arg %s int_arg %d\n", opt->sh_name, opt->trig, opt->str_arg, opt->int_arg);
     }
-    return OK;
+    return ERR_OK;
 }
 
 ErrEnum parseOpts(int argc, const char* argv[], struct Option* opts, int n_opts)
@@ -89,5 +89,5 @@ ErrEnum parseOpts(int argc, const char* argv[], struct Option* opts, int n_opts)
         if (!trig)
             return ERR_INVAL_OPT;
     }
-    return OK;
+    return ERR_OK;
 }

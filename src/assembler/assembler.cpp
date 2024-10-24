@@ -9,8 +9,7 @@
 #include <error.h>
 #include <utils.h>
 
-const int MEM = 0x80, REG = 0x40, IMM = 0x20, 
-max_label_len = 20, buffer_size = 30, code_size = 100;
+const int max_label_len = 20, buffer_size = 30;
 
 void clearComments(char* str)
 {
@@ -35,7 +34,7 @@ ErrEnum asmCtor(Asm* ase)
     ase->str_cmd = (char*)calloc(buffer_size, sizeof(char));
     if (ase->str_cmd == NULL)
         return ERR_MEM;
-    ase->code = (int*)calloc(code_size, sizeof(int));
+    ase->code = (int*)calloc(max_cmds, sizeof(int));
     if (ase->code == NULL)
         return ERR_MEM;
     ase->str_code = NULL;
@@ -43,7 +42,7 @@ ErrEnum asmCtor(Asm* ase)
     labelArrayCtor(&ase->la);
     fixupTableCtor(&ase->ft);
 
-    return OK;
+    return ERR_OK;
 }
 void asmDtor(Asm* ase)
 {
@@ -77,20 +76,29 @@ ErrEnum getArg(Asm* ase)
     wrong: 000 001 011 100
     */
 
-    int pos_incr = 0;
-    char str_buf1[buffer_size] = "";
+    char *str_ptr1 = ase->str_code + ase->str_code_pos;
+    while (isspace(*str_ptr1))
+        ++str_ptr1;
+    if (*str_ptr1 == '\0')
+        return ERR_CMD_NO_ARG;
 
-    sscanf(ase->str_code + ase->str_code_pos, "%s%n", str_buf1, &pos_incr);
-    ase->str_code_pos += pos_incr;
+    char *str_ptr2 = str_ptr1;
+    while (!isspace(*str_ptr2) && *str_ptr2 != '\0')
+        ++str_ptr2;
+    if (*str_ptr2 == '\0')
+        ase->str_code_pos = str_ptr2 - ase->str_code;
+    else
+    {
+        *str_ptr2 = '\0';
+        ase->str_code_pos = str_ptr2 - ase->str_code + 1;
+    }
 
-    char *str_ptr1 = str_buf1;
     char* chr1  = strchr(str_ptr1, ']');
-
     if (chr1 != NULL)
     {
         if (str_ptr1[0] != '[')
             return ERR_BRACKET;
-        ase->code[ase->ip] |= MEM;
+        ase->code[ase->ip] |= MEM_BIT;
         ++str_ptr1;
         *chr1 = ' ';
     }
@@ -100,30 +108,30 @@ ErrEnum getArg(Asm* ase)
     {
         if (sscanf(chr1 + 1, "%d", ase->code + ase->ip + 2) != 1)
             return ERR_CMD_ARG_FMT;
-        ase->code[ase->ip] |= REG | IMM;
+        ase->code[ase->ip] |= REG_BIT | IMM_BIT;
         *(chr1) = ' ';
         getRegNum(str_ptr1, ase->code + ase->ip + 1);
         if (ase->code[ase->ip + 1] == INVAL_REG)
-            return ERR_REG_NAME;
+            return ERR_INVAL_REG_NAME;
         ase->ip += 3;
     }
 
     else if (sscanf(str_ptr1, "%d", ase->code + ase->ip + 1) == 1)
     {
-        ase->code[ase->ip] |= IMM;
+        ase->code[ase->ip] |= IMM_BIT;
         ase->ip += 2;
     }
 
     else
     {
-        ase->code[ase->ip] |= REG;
+        ase->code[ase->ip] |= REG_BIT;
         getRegNum(str_ptr1, ase->code + ase->ip + 1);
         if (ase->code[ase->ip + 1] == INVAL_REG)
-            return ERR_REG_NAME;
+            return ERR_INVAL_REG_NAME;
         ase->ip += 2;
     }
 
-    return OK;
+    return ERR_OK;
 }
 
 ErrEnum runAsm(FILE* fin, FILE* fout)
@@ -188,10 +196,14 @@ ErrEnum runAsm(FILE* fin, FILE* fout)
     Asm ase = {};
     returnErr(asmCtor(&ase));
 
-    returnErr(readFile(fin, &ase.str_code));
-    clearComments(ase.str_code);
+    long str_code_size = 0;
+    returnErr(fileSize(fin, &str_code_size));
+    
+    ase.str_code = (char*)calloc(str_code_size + 1, sizeof(char));
+    if (ase.str_code == NULL) return ERR_MEM;
+    fread(ase.str_code, sizeof(char), str_code_size, fin);
 
-    // printf("no comments:\n\n%s\n", ase.str_code);
+    clearComments(ase.str_code);
     
     while (1)
     {
@@ -214,6 +226,7 @@ ErrEnum runAsm(FILE* fin, FILE* fout)
         ASM_CASE(DUMP)
         ASM_CASE(RET)
         ASM_CASE(DRAW)
+        ASM_CASE(SQRT)
 
         ASM_CASE_COMPLEX_ARG(PUSH)
         ASM_CASE_COMPLEX_ARG(POP)
@@ -231,12 +244,9 @@ ErrEnum runAsm(FILE* fin, FILE* fout)
         return ERR_INVAL_CMD;
     }
 
-    fixup(ase.code, &ase.ft, &ase.la);
-    ase.code[ase.ip] = CMD_END;
-
-    if (fwrite(ase.code, sizeof(int), code_size, fout) < code_size)
+    returnErr(fixup(ase.code, &ase.ft, &ase.la));
+    if (fwrite(ase.code, sizeof(int), ase.ip, fout) != ase.ip)
         return ERR_IO;
-
     asmDtor(&ase);
 
     #undef myScanfExp
@@ -245,7 +255,7 @@ ErrEnum runAsm(FILE* fin, FILE* fout)
     #undef ASM_CASE_COMPLEX_ARG
     #undef ASM_CASE_LABEL_ARG
 
-    return OK;
+    return ERR_OK;
 }
 
 void labelCtor(Label* label)
@@ -268,7 +278,7 @@ ErrEnum labelArrayCtor(LabelArray* la)
     for (int i = 0; i < la->max_labels; ++i)
         labelCtor(la->labels + i);
 
-    return OK;
+    return ERR_OK;
 }
 
 void labelArrayDtor(LabelArray* la)
@@ -314,7 +324,7 @@ ErrEnum fixupTableCtor(FixupTable* ft)
     if (ft->table == NULL || ft->name_buf == NULL)
         return ERR_MEM;
 
-    return OK;
+    return ERR_OK;
 }
 
 void fixupTableDtor(FixupTable* ft)
@@ -332,13 +342,15 @@ void addFixup(FixupTable* ft, int ip, char* name)
     ++(ft->n_fixups);
 }
 
-void fixup(int* code, FixupTable* ft, LabelArray* la)
+ErrEnum fixup(int* code, FixupTable* ft, LabelArray* la)
 {
     int adr = -1;
-
     for (int fixup_n = 0; fixup_n < ft->n_fixups; ++fixup_n)
     {
         getLabelAdr(la, ft->table[fixup_n].name, &adr);
+        if (adr == -1)
+            return ERR_INVAL_LABEL;
         code[ft->table[fixup_n].ip] = adr;
     }
+    return ERR_OK;
 }

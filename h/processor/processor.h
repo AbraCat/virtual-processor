@@ -21,7 +21,7 @@ void procDtor(Proc* prc);
 ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout);
 ErrEnum getPopDestination(Proc* prc, int** dest);
 void initRam(Proc* prc);
-ErrEnum drawRam(Proc* prc, FILE* fout);
+ErrEnum drawRam(FILE* fout, Proc* prc);
 void prcDump(FILE* fout, Proc* prc);
 
 #endif // PROCESSOR_H

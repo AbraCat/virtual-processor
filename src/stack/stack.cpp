@@ -32,7 +32,7 @@ ErrEnum stCtorNDebug(Stack* st, int capacity)
     stUpdateHash(st);
 
     returnErr(stErr(st));
-    return OK;
+    return ERR_OK;
 }
 
 ErrEnum stCtorDebug(Stack* st, int capacity, const char* file_born, int line_born, const char* func_born)
@@ -61,7 +61,7 @@ ErrEnum stCtorDebug(Stack* st, int capacity, const char* file_born, int line_bor
     stUpdateHash(st);
 
     returnErr(stErr(st));
-    return OK;
+    return ERR_OK;
 }
 
 void stDtor(Stack* st)
@@ -159,7 +159,7 @@ ErrEnum resize(Stack* st, int new_capacity)
     if (new_capacity == 0)
     {
         st->data = NULL;
-        return OK;
+        return ERR_OK;
     }
 
     StackElem* new_data = NULL;
@@ -174,7 +174,7 @@ ErrEnum resize(Stack* st, int new_capacity)
 
     if (new_data == NULL)
     {
-        return ERR_NOMEM;
+        return ERR_MEM;
     }
 
     st->data = new_data;
@@ -191,7 +191,7 @@ ErrEnum resize(Stack* st, int new_capacity)
         }
     )
 
-    return OK;
+    return ERR_OK;
 }
 
 ErrEnum stPush(Stack* st, StackElem elem)
@@ -207,7 +207,7 @@ ErrEnum stPush(Stack* st, StackElem elem)
 
     stUpdateHash(st);
     returnErr(stErr(st));
-    return OK;
+    return ERR_OK;
 }
 
 ErrEnum stPop(Stack* st, StackElem* elem)
@@ -231,7 +231,7 @@ ErrEnum stPop(Stack* st, StackElem* elem)
 
     stUpdateHash(st);
     returnErr(stErr(st));
-    return OK;
+    return ERR_OK;
 }
 
 ErrEnum stErr(Stack* st)
@@ -298,14 +298,14 @@ ErrEnum stErr(Stack* st)
             return ERR_BAD_HASH;
     )
 
-    return OK;
+    return ERR_OK;
 }
 
 void stDumpFn(FILE* file, Stack* st, const char* file_name, int line, const char* func_name)
 {
     #define PRINT_ERR(err)                                                    \
     {                                                                         \
-        char* descr = NULL;                                                   \
+        const char* descr = NULL;                                                   \
         getErrDescr(ERR_ ## err, &descr);                                     \
         fprintf(file, "%sstDump(): %s%s\n", MAGENTA_STR, descr, DEFAULT_STR); \
     }

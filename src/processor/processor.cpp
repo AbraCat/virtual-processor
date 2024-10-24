@@ -1,34 +1,33 @@
 #include <assert.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include <processor.h>
 #include <common.h>
 #include <colors.h>
 #include <error.h>
+#include <utils.h>
 
 static const int ram_size = 10;
-const int MEM = 0x80, REG = 0x40, IMM = 0x20, MASK_CMD = 0x1F, MASK_ARGT = 0xE0;
 
 ErrEnum procCtor(Proc* prc)
 {
     stCtor(&prc->st, 0);
     stCtor(&prc->ret, 0);
     prc->ip = prc->cmd = prc->argt = prc->arg1 = prc->arg2 = 0;
-    prc->code = (int*)calloc(MAX_CMDS, sizeof(int));
+    prc->code = NULL;
+
     prc->ram = (int*)calloc(ram_size * ram_size * 2, sizeof(int));
-
-    if (prc->code == NULL || prc->ram == NULL)
-        return ERR_MEM;
-
+    if (prc->ram == NULL) return ERR_MEM;
     initRam(prc);
 
-    return OK;
+    return ERR_OK;
 }
 void procDtor(Proc* prc)
 {
     stDtor(&prc->st);
     stDtor(&prc->ret);
-    free(prc->reg);
+    free(prc->code);
     free(prc->ram);
 }
 
@@ -48,33 +47,36 @@ ErrEnum getPopDestination(Proc* prc, int** dest)
     101 110 111 - ram
     */
 
-    if ((prc->argt & (IMM | REG | MEM)) == 0 || (prc->argt & (IMM | REG | MEM)) == MEM)
+    if ((prc->argt & (IMM_BIT | REG_BIT | MEM_BIT)) == 0 || 
+        (prc->argt & (IMM_BIT | REG_BIT | MEM_BIT)) == MEM_BIT)
     {
         *dest = NULL;
         return ERR_INSTR_ARG_FMT;
     }
 
-    if ((prc->argt & (IMM | REG | MEM)) == REG)
+    if ((prc->argt & (IMM_BIT | REG_BIT | MEM_BIT)) == REG_BIT)
     {
         *dest = prc->reg + prc->code[prc->ip++];
-        return OK;
+        return ERR_OK;
     }
 
     int argv = 0;
-    if (prc->argt & REG)
+    if (prc->argt & REG_BIT)
         argv += prc->reg[prc->code[prc->ip++]];
-    if (prc->argt & IMM)
+    if (prc->argt & IMM_BIT)
         argv += prc->code[prc->ip++];
-    if (prc->argt & MEM)
+    if (prc->argt & MEM_BIT)
     {
         *dest = prc->ram + argv;
-        return OK;
+        return ERR_OK;
     }
 
     // push
+    if (prc->cmd == CMD_POP) return ERR_INSTR_ARG_FMT;
+    
     prc->arg1 = argv;
     *dest = &prc->arg1;
-    return OK;
+    return ERR_OK;
 }
 
 ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout)
@@ -83,28 +85,25 @@ ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout)
 
     struct Proc prc = {};
     returnErr(procCtor(&prc));
-    fread(prc.code, sizeof(int), MAX_CMDS, fcode);
+
+    int n_cmds = 0;
+    returnErr(readCode(fcode, &prc.code, &n_cmds));
     int* code = prc.code;
 
     while (1)
     {
-        if (prc.ip < 0 || prc.ip >= MAX_CMDS)
-            return ERR_IP_BOUNDARY;
-         
-        // printf("cmd ip = 0x%X\n", prc.ip);
+        if (prc.ip < 0 || prc.ip >= n_cmds)
+            return ERR_IP_BOUND;
 
         prc.cmd = code[prc.ip] & MASK_CMD;
         prc.argt = code[prc.ip++] & MASK_ARGT;
         switch(prc.cmd)
         {
-            case CMD_END:
-                procDtor(&prc);
-                return OK;
             case CMD_HLT:
                 procDtor(&prc);
-                return OK;
+                return ERR_OK;
             case CMD_IN:
-                fscanf(fin, "%d", &prc.arg1);
+                if (fscanf(fin, "%d", &prc.arg1) != 1) return ERR_INPUT;
                 returnErr(stPush(&prc.st, prc.arg1));
                 break;
             case CMD_OUT:
@@ -124,6 +123,11 @@ ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout)
             CASE_ARITHM_OP(MUL, *)
             CASE_ARITHM_OP(DIV, /)
 
+            case CMD_SQRT:                                     
+                returnErr(stPop(&prc.st, &prc.arg1));                 
+                returnErr(stPush(&prc.st, (int)sqrt(prc.arg1)));
+                break;
+
             case CMD_DUMP:
                 prcDump(fout, &prc);
                 break;
@@ -142,7 +146,7 @@ ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout)
                 break;
             }
             case CMD_DRAW:
-                returnErr(drawRam(&prc, stdout));
+                returnErr(drawRam(fout, &prc));
                 break;
             case CMD_JMP:
                 prc.ip = code[prc.ip];
@@ -181,8 +185,9 @@ ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout)
         }
     }
 
+    // this code should never be reached
     procDtor(&prc);
-    return OK;
+    return ERR_OK;
 }
 
 void initRam(Proc* prc)
@@ -202,7 +207,7 @@ void initRam(Proc* prc)
     return;
 }
 
-ErrEnum drawRam(Proc* prc, FILE* fout)
+ErrEnum drawRam(FILE* fout, Proc* prc)
 {
     myAssert(prc != NULL && fout != NULL);
 
@@ -217,7 +222,7 @@ ErrEnum drawRam(Proc* prc, FILE* fout)
         putc('\n', fout);
     }
 
-    return OK;
+    return ERR_OK;
 }
 
 void prcDump(FILE* fout, Proc* prc)
@@ -234,5 +239,5 @@ void prcDump(FILE* fout, Proc* prc)
     putc('\n', fout);
     stDump(fout, &prc->st);
     fputs("RAM:\n\n", fout);
-    drawRam(prc, fout);
+    drawRam(fout, prc);
 }

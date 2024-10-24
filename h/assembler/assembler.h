@@ -59,7 +59,7 @@ ErrEnum fixupTableCtor(FixupTable* ft);
 void fixupTableDtor(FixupTable* ft);
 
 void addFixup(FixupTable* ft, int ip, char* name);
-void fixup(int* code, FixupTable* ft, LabelArray* la);
+ErrEnum fixup(int* code, FixupTable* ft, LabelArray* la);
 
 
 #endif // ASSEMBLER_H

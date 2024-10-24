@@ -6,15 +6,11 @@
 #include <common.h>
 #include <error.h>
 
-const int MEM = 0x80, REG = 0x40, IMM = 0x20, MASK_CMD = 0x1F, MASK_ARGT = 0xE0;
-
 ErrEnum disasmCtor(Disasm* dis)
 {
     dis->ip = 0;
-    dis->code = (int*)calloc(MAX_CMDS, sizeof(int));
-    if (dis->code == NULL)
-        return ERR_MEM;
-    return OK;
+    dis->code = NULL;
+    return ERR_OK;
 }
 
 void disasmDtor(Disasm* dis)
@@ -38,30 +34,27 @@ ErrEnum printComplexArg(Disasm* dis, FILE* fout)
     101 110 111 - ram
     */
 
-   int argt = dis->code[dis->ip - 1] & MASK_ARGT, mem = 0;
+    int argt = dis->code[dis->ip - 1] & MASK_ARGT, mem = 0;
 
-    if ((argt & (IMM | REG | MEM)) == 0 || (argt & (IMM | REG | MEM)) == MEM)
+    if ((argt & (IMM_BIT | REG_BIT | MEM_BIT)) == 0 || 
+        (argt & (IMM_BIT | REG_BIT | MEM_BIT)) == MEM_BIT)
         return ERR_INSTR_ARG_FMT;
 
-    if (argt & MEM)
+    if (argt & MEM_BIT)
     {
         mem = 1;
         putc('[', fout);
     }
-
-    if (argt & REG)
+    if (argt & REG_BIT)
         returnErr(printRegName((RegEnum)(dis->code[dis->ip++]), fout));
-
-    if ((argt & REG) && (argt & IMM))
+    if ((argt & REG_BIT) && (argt & IMM_BIT))
         putc('+', fout);
-
-    if (argt & IMM)
+    if (argt & IMM_BIT)
         fprintf(fout, "%d", dis->code[dis->ip++]);
-
     if (mem)
         putc(']', fout);
 
-    return OK;
+    return ERR_OK;
 }
 
 ErrEnum runDisasm(FILE* fin, FILE* fout)
@@ -88,20 +81,14 @@ ErrEnum runDisasm(FILE* fin, FILE* fout)
 
     Disasm dis = {};
     returnErr(disasmCtor(&dis));
+    
+    int n_cmds = 0;
+    returnErr(readCode(fin, &dis.code, &n_cmds));
 
-    fread(dis.code, sizeof(int), MAX_CMDS, fin);
-
-    while (1)
+    while (dis.ip < n_cmds)
     {
-        if (dis.ip >= MAX_CMDS)
-            return ERR_IP_BOUNDARY;
-
         switch (dis.code[dis.ip++] & MASK_CMD)
         {
-            case CMD_END:
-                disasmDtor(&dis);
-                return OK;
-
             DISASM_CASE(HLT)
             DISASM_CASE(IN)
             DISASM_CASE(OUT)
@@ -112,6 +99,7 @@ ErrEnum runDisasm(FILE* fin, FILE* fout)
             DISASM_CASE(DUMP)
             DISASM_CASE(RET)
             DISASM_CASE(DRAW)
+            DISASM_CASE(SQRT)
 
             DISASM_CASE_ARG(JMP)
             DISASM_CASE_ARG(JB)
@@ -132,7 +120,7 @@ ErrEnum runDisasm(FILE* fin, FILE* fout)
     }
 
     disasmDtor(&dis);
-    return OK;
+    return ERR_OK;
 
     #undef DISASM_CASE
     #undef DISASM_CASE_ARG

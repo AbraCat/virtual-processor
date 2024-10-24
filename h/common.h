@@ -5,7 +5,9 @@
 
 #include <error.h>
 
-const int n_regs = 4, MAX_CMDS = 200;
+const int n_regs = 4, max_cmds = 500, 
+MEM_BIT = 0x80, REG_BIT = 0x40, 
+IMM_BIT = 0x20, MASK_CMD = 0x1F, MASK_ARGT = 0xE0;
 
 enum RegEnum
 {
@@ -18,7 +20,6 @@ enum RegEnum
 
 enum CmdCode
 {
-    CMD_END   = 31, // used to mark end of code
     CMD_HLT   = 0,
     CMD_IN    = 1,
     CMD_OUT   = 2,
@@ -39,8 +40,10 @@ enum CmdCode
     CMD_CALL  = 17,
     CMD_RET   = 18,
     CMD_DRAW  = 19,
+    CMD_SQRT  = 20,
 };
 
 ErrEnum printRegName(RegEnum reg_num, FILE* fout);
+ErrEnum readCode(FILE* fcode, int** code, int* n_cmds);
 
 #endif // COMMON_H
