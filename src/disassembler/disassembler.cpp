@@ -6,7 +6,6 @@
 #include <common.h>
 #include <error.h>
 
-static const int MAX_CMDS = 100;
 const int MEM = 0x80, REG = 0x40, IMM = 0x20, MASK_CMD = 0x1F, MASK_ARGT = 0xE0;
 
 ErrEnum disasmCtor(Disasm* dis)

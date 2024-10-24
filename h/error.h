@@ -45,6 +45,7 @@ enum ErrEnum
     ERR_INVAL_INSTR,
     ERR_INVAL_OPT,
     ERR_IP_BOUNDARY,
+    ERR_INVAL_REG_NUM
 };
 
 struct ErrDescr

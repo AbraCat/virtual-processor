@@ -5,6 +5,8 @@
 
 #include <error.h>
 
+const int n_regs = 4, MAX_CMDS = 200;
+
 enum RegEnum
 {
     INVAL_REG = -1,

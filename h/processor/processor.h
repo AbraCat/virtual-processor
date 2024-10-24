@@ -5,8 +5,7 @@
 #include <stack.h>
 
 #include <error.h>
-
-const int n_regs = 4;
+#include <common.h>
 
 struct Proc
 {

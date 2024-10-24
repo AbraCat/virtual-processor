@@ -3,28 +3,9 @@
 ErrEnum printRegName(RegEnum reg_num, FILE* fout)
 {
     myAssert(fout != NULL);
+    if (reg_num < 0 || reg_num >= n_regs)
+        return ERR_INVAL_REG_NUM;
 
-    #define REG_CASE(enum_elem)                 \
-        case enum_elem:                         \
-            if (fputs(#enum_elem, fout) == EOF) \
-                return ERR_IO;                  \
-            break;
-
-    switch (reg_num)
-    {
-        REG_CASE(AX)
-        REG_CASE(BX)
-        REG_CASE(CX)
-        REG_CASE(DX)
-        REG_CASE(INVAL_REG)
-
-        default:
-            if (fputs("INVAL_REG", fout) == EOF)
-                return ERR_IO;
-            break;
-    }
-
+    fprintf(fout, "%cX", 'A' + reg_num);
     return OK;
-
-    #undef REG_CASE
 }

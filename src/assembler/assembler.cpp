@@ -2,17 +2,19 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <ctype.h>
 
 #include <assembler.h>
 #include <common.h>
 #include <error.h>
 #include <utils.h>
 
-const int MEM = 0x80, REG = 0x40, IMM = 0x20, max_label_len = 20;
+const int MEM = 0x80, REG = 0x40, IMM = 0x20, 
+max_label_len = 20, buffer_size = 30, code_size = 100;
 
 void clearComments(char* str)
 {
-    static const char comment_start = ';';
+    const char comment_start = ';';
 
     int clearing = 0;
     for (; *str != '\0'; ++str)
@@ -28,23 +30,12 @@ void clearComments(char* str)
 
 ErrEnum asmCtor(Asm* ase)
 {
-    #define ALLOC_BUF(var)                                        \
-        ase->var = (char*)calloc(ase->buffer_size, sizeof(char)); \
-        if (ase->var == NULL) return ERR_MEM;
+    ase->ip = ase->arg1 = ase->arg2 = ase->str_code_pos = 0;
 
-    ase->buffer_size = 30;
-    ase->code_size = 100;
-
-    ALLOC_BUF(str_cmd);
-    ALLOC_BUF(str_arg1);
-    ALLOC_BUF(str_arg2);
-    ALLOC_BUF(label);
-
-    ase->chr1 = NULL;
-    ase->ip = ase->n_args = ase->arg1 = ase->arg2 = 
-    ase->str_code_pos = ase->pos_incr = 0;
-
-    ase->code = (int*)calloc(ase->code_size, sizeof(int));
+    ase->str_cmd = (char*)calloc(buffer_size, sizeof(char));
+    if (ase->str_cmd == NULL)
+        return ERR_MEM;
+    ase->code = (int*)calloc(code_size, sizeof(int));
     if (ase->code == NULL)
         return ERR_MEM;
     ase->str_code = NULL;
@@ -52,18 +43,12 @@ ErrEnum asmCtor(Asm* ase)
     labelArrayCtor(&ase->la);
     fixupTableCtor(&ase->ft);
 
-    #undef ALLOC_BUF
-
     return OK;
 }
 void asmDtor(Asm* ase)
 {
     free(ase->str_code);
     free(ase->str_cmd);
-    free(ase->str_arg1);
-    free(ase->str_arg2);
-    free(ase->label);
-    free(ase->chr1);
     free(ase->code);
     labelArrayDtor(&ase->la);
     fixupTableDtor(&ase->ft);
@@ -71,21 +56,13 @@ void asmDtor(Asm* ase)
 
 void getRegNum(char* str_name, int* num)
 {
-    #define REG_CASE(name)                \
-        if (strcmp(str_name, #name) == 0) \
-        {                                 \
-            *num = (int)name;             \
-            return;                       \
-        }
-
-    REG_CASE(AX)
-    REG_CASE(BX)
-    REG_CASE(CX)
-    REG_CASE(DX)
-
-    *num = INVAL_REG;
-
-    #undef REG_CASE
+    if ((!isspace(str_name[2]) && str_name[2] != '\0') || 
+    str_name[1] != 'X' || str_name[0] - 'A' < 0 || str_name[0] - 'A' >= n_regs)
+    {
+        *num = INVAL_REG;
+        return;
+    }
+    *num = str_name[0] - 'A';
 }
 
 ErrEnum getArg(Asm* ase)
@@ -100,46 +77,49 @@ ErrEnum getArg(Asm* ase)
     wrong: 000 001 011 100
     */
 
-    ase->chr1 = strchr(ase->str_arg1, ']');
-    if (ase->chr1 != NULL)
+    int pos_incr = 0;
+    char str_buf1[buffer_size] = "";
+
+    sscanf(ase->str_code + ase->str_code_pos, "%s%n", str_buf1, &pos_incr);
+    ase->str_code_pos += pos_incr;
+
+    char *str_ptr1 = str_buf1;
+    char* chr1  = strchr(str_ptr1, ']');
+
+    if (chr1 != NULL)
     {
-        if (sscanf(ase->str_arg1, "[%s", ase->str_arg2) != 1)
+        if (str_ptr1[0] != '[')
             return ERR_BRACKET;
         ase->code[ase->ip] |= MEM;
-        *(ase->str_arg2 + (ase->chr1 - ase->str_arg1) - 1) = '\0'; // ] in str_arg2
-        strcpy(ase->str_arg1, ase->str_arg2);
+        ++str_ptr1;
+        *chr1 = ' ';
     }
 
-    ase->chr1 = strchr(ase->str_arg1, '+');
-    if (ase->chr1 != NULL)
+    chr1 = strchr(str_ptr1, '+');
+    if (chr1 != NULL)
     {
-        if (sscanf(ase->chr1 + 1, "%d", &ase->arg2) != 1)
+        if (sscanf(chr1 + 1, "%d", ase->code + ase->ip + 2) != 1)
             return ERR_CMD_ARG_FMT;
         ase->code[ase->ip] |= REG | IMM;
-        *(ase->chr1) = '\0';
-        getRegNum(ase->str_arg1, &ase->arg1);
-        if (ase->arg1 == INVAL_REG)
+        *(chr1) = ' ';
+        getRegNum(str_ptr1, ase->code + ase->ip + 1);
+        if (ase->code[ase->ip + 1] == INVAL_REG)
             return ERR_REG_NAME;
-        ase->code[ase->ip + 1] = ase->arg1;
-        ase->code[ase->ip + 2] = ase->arg2;
         ase->ip += 3;
     }
 
-    else if (sscanf(ase->str_arg1, "%d", &ase->arg1) == 1)
+    else if (sscanf(str_ptr1, "%d", ase->code + ase->ip + 1) == 1)
     {
         ase->code[ase->ip] |= IMM;
-        ase->code[ase->ip + 1] = ase->arg1;
         ase->ip += 2;
     }
 
     else
     {
         ase->code[ase->ip] |= REG;
-        sscanf(ase->str_arg1, "%s", ase->str_arg2);
-        getRegNum(ase->str_arg2, &ase->arg2);
-        if (ase->arg2 == INVAL_REG)
+        getRegNum(str_ptr1, ase->code + ase->ip + 1);
+        if (ase->code[ase->ip + 1] == INVAL_REG)
             return ERR_REG_NAME;
-        ase->code[ase->ip + 1] = ase->arg2;
         ase->ip += 2;
     }
 
@@ -151,8 +131,8 @@ ErrEnum runAsm(FILE* fin, FILE* fout)
     #define myScanf(fmt, ...)                               \
     (                                                       \
         scanf_res = sscanf(ase.str_code + ase.str_code_pos, \
-        fmt "%n", __VA_ARGS__, &ase.pos_incr),              \
-        ase.str_code_pos += ase.pos_incr,                   \
+        fmt "%n", __VA_ARGS__, &pos_incr),                  \
+        ase.str_code_pos += pos_incr,                       \
         scanf_res                                           \
     )
 
@@ -180,31 +160,31 @@ ErrEnum runAsm(FILE* fin, FILE* fout)
         if (strcmp(ase.str_cmd, #command) == 0) \
         {                                       \
             ase.code[ase.ip] = CMD_ ## command; \
-            myScanfExp(1, "%s", ase.str_arg1);  \
-            getArg(&ase);                       \
+            returnErr(getArg(&ase));            \
             continue;                           \
         }
 
-    #define ASM_CASE_LABEL_ARG(command)                           \
-        if (strcmp(ase.str_cmd, #command) == 0)                   \
-        {                                                         \
-            ase.code[ase.ip++] = CMD_ ## command;                 \
-            myScanfExp(1, "%s", ase.label);                       \
-            if (ase.label[strlen(ase.label) - 1] == ':')          \
-            {                                                     \
-                getLabelAdr(&ase.la, ase.label, &ase.arg1);       \
-                ase.code[ase.ip++] = ase.arg1;                    \
-                if (ase.arg1 == -1)                               \
-                    addFixup(&ase.ft, ase.ip - 1, ase.label);     \
-            }                                                     \
-            else                                                  \
-                ase.code[ase.ip++] = strtol(ase.label, NULL, 10); \
-            continue;                                             \
+    #define ASM_CASE_LABEL_ARG(command)                       \
+        if (strcmp(ase.str_cmd, #command) == 0)               \
+        {                                                     \
+            ase.code[ase.ip++] = CMD_ ## command;             \
+            myScanfExp(1, "%s", label);                       \
+            if (label[strlen(label) - 1] == ':')              \
+            {                                                 \
+                getLabelAdr(&ase.la, label, &ase.arg1);       \
+                ase.code[ase.ip++] = ase.arg1;                \
+                if (ase.arg1 == -1)                           \
+                    addFixup(&ase.ft, ase.ip - 1, label);     \
+            }                                                 \
+            else                                              \
+                ase.code[ase.ip++] = strtol(label, NULL, 10); \
+            continue;                                         \
         }
 
     myAssert(fin != NULL && fout != NULL);
 
-    int scanf_res = 0;
+    int scanf_res = 0, pos_incr = 0;
+    char label[buffer_size] = "";
     Asm ase = {};
     returnErr(asmCtor(&ase));
 
@@ -254,7 +234,7 @@ ErrEnum runAsm(FILE* fin, FILE* fout)
     fixup(ase.code, &ase.ft, &ase.la);
     ase.code[ase.ip] = CMD_END;
 
-    if (fwrite(ase.code, sizeof(int), ase.code_size, fout) < ase.code_size)
+    if (fwrite(ase.code, sizeof(int), code_size, fout) < code_size)
         return ERR_IO;
 
     asmDtor(&ase);

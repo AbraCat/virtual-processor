@@ -6,7 +6,7 @@
 #include <colors.h>
 #include <error.h>
 
-static const int MAX_CMDS = 100, ram_size = 10;
+static const int ram_size = 10;
 const int MEM = 0x80, REG = 0x40, IMM = 0x20, MASK_CMD = 0x1F, MASK_ARGT = 0xE0;
 
 ErrEnum procCtor(Proc* prc)
@@ -91,17 +91,15 @@ ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout)
         if (prc.ip < 0 || prc.ip >= MAX_CMDS)
             return ERR_IP_BOUNDARY;
          
-        // printf("ip = %d\n", prc.ip);
-        if (code[prc.ip] == CMD_END)
-        {
-            procDtor(&prc);
-            return OK;
-        }
+        // printf("cmd ip = 0x%X\n", prc.ip);
 
         prc.cmd = code[prc.ip] & MASK_CMD;
         prc.argt = code[prc.ip++] & MASK_ARGT;
         switch(prc.cmd)
         {
+            case CMD_END:
+                procDtor(&prc);
+                return OK;
             case CMD_HLT:
                 procDtor(&prc);
                 return OK;
@@ -214,7 +212,7 @@ ErrEnum drawRam(Proc* prc, FILE* fout)
         for (int j = 0; j < ram_size; ++j)
         {
             adr = 2 * (i * ram_size + j);
-            fprintf(fout, "\x1b[3%cm%c%c\x1b[39m", '0' + prc->ram[adr + 1], prc->ram[adr], prc->ram[adr]);
+            fprintf(fout, "\x1b[3%dm%c%c\x1b[39m", prc->ram[adr + 1], prc->ram[adr], prc->ram[adr]);
         }
         putc('\n', fout);
     }

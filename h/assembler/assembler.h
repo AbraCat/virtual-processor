@@ -32,14 +32,11 @@ struct FixupTable
 
 struct Asm
 {
-    char *str_code, *str_cmd, *str_arg1, *str_arg2, *label;
-    char *chr1;
+    char *str_code, *str_cmd;
     int *code;
-    int ip, str_code_pos, pos_incr, n_args, arg1, arg2;
+    int ip, str_code_pos, arg1, arg2;
     LabelArray la;
     FixupTable ft;
-
-    int buffer_size, code_size;
 };
 
 ErrEnum runAsm(FILE* fin, FILE* fout);
