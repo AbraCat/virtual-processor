@@ -14,7 +14,7 @@ ErrEnum procCtor(Proc* prc)
 {
     stCtor(&prc->st, 0);
     stCtor(&prc->ret, 0);
-    prc->ip = prc->cmd = prc->argt = prc->arg1 = prc->arg2 = 0;
+    prc->n_cmds = prc->ip = prc->cmd = prc->argt = prc->arg1 = prc->arg2 = 0;
     prc->code = NULL;
 
     prc->ram = (int*)calloc(ram_size * ram_size * 2, sizeof(int));
@@ -31,7 +31,7 @@ void procDtor(Proc* prc)
     free(prc->ram);
 }
 
-ErrEnum getPopDestination(Proc* prc, int** dest)
+ErrEnum getPopDestination(Proc* prc, int** dest, int write)
 {
     /*
     push:
@@ -71,51 +71,57 @@ ErrEnum getPopDestination(Proc* prc, int** dest)
         return ERR_OK;
     }
 
-    // push
-    if (prc->cmd == CMD_POP) return ERR_INSTR_ARG_FMT;
-    
+    if (write) return ERR_INSTR_ARG_FMT;
+
     prc->arg1 = argv;
     *dest = &prc->arg1;
     return ERR_OK;
 }
 
-ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout)
+ErrEnum runProcFile(FILE* fcode, FILE* fin, FILE* fout)
 {
-    myAssert(fin != NULL && fout != NULL);
+    myAssert(fout != NULL && fin != NULL && fout != NULL);
 
     struct Proc prc = {};
     returnErr(procCtor(&prc));
+    returnErr(readCode(fcode, &prc.code, &prc.n_cmds));
+    returnErr(runProc(&prc, fin, fout));
+    procDtor(&prc);
+    
+    return ERR_OK;
+}
 
-    int n_cmds = 0;
-    returnErr(readCode(fcode, &prc.code, &n_cmds));
-    int* code = prc.code;
+ErrEnum runProc(Proc* prc, FILE* fin, FILE* fout)
+{
+    myAssert(prc != NULL);
+
+    int* code = prc->code;
 
     while (1)
     {
-        if (prc.ip < 0 || prc.ip >= n_cmds)
+        if (prc->ip < 0 || prc->ip >= prc->n_cmds)
             return ERR_IP_BOUND;
 
-        prc.cmd = code[prc.ip] & MASK_CMD;
-        prc.argt = code[prc.ip++] & MASK_ARGT;
-        switch(prc.cmd)
+        prc->cmd = code[prc->ip] & MASK_CMD;
+        prc->argt = code[prc->ip++] & MASK_ARGT;
+        switch(prc->cmd)
         {
             case CMD_HLT:
-                procDtor(&prc);
                 return ERR_OK;
             case CMD_IN:
-                if (fscanf(fin, "%d", &prc.arg1) != 1) return ERR_INPUT;
-                returnErr(stPush(&prc.st, prc.arg1));
+                if (fscanf(fin, "%d", &prc->arg1) != 1) return ERR_INPUT;
+                returnErr(stPush(&prc->st, prc->arg1));
                 break;
             case CMD_OUT:
-                returnErr(stPop(&prc.st, &prc.arg1));
-                fprintf(fout, "%d\n", prc.arg1);
+                returnErr(stPop(&prc->st, &prc->arg1));
+                fprintf(fout, "%d\n", prc->arg1);
                 break;
 
             #define CASE_ARITHM_OP(cmd, op)                           \
                 case CMD_ ## cmd:                                     \
-                    returnErr(stPop(&prc.st, &prc.arg1));             \
-                    returnErr(stPop(&prc.st, &prc.arg2));             \
-                    returnErr(stPush(&prc.st, prc.arg2 op prc.arg1)); \
+                    returnErr(stPop(&prc->st, &prc->arg1));             \
+                    returnErr(stPop(&prc->st, &prc->arg2));             \
+                    returnErr(stPush(&prc->st, prc->arg2 op prc->arg1)); \
                     break;
 
             CASE_ARITHM_OP(ADD, +)
@@ -124,42 +130,42 @@ ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout)
             CASE_ARITHM_OP(DIV, /)
 
             case CMD_SQRT:                                     
-                returnErr(stPop(&prc.st, &prc.arg1));                 
-                returnErr(stPush(&prc.st, (int)sqrt(prc.arg1)));
+                returnErr(stPop(&prc->st, &prc->arg1));                 
+                returnErr(stPush(&prc->st, (int)sqrt(prc->arg1)));
                 break;
 
             case CMD_DUMP:
-                prcDump(fout, &prc);
+                prcDump(fout, prc);
                 break;
             case CMD_PUSH:
             {
                 int *arg = NULL;
-                returnErr(getPopDestination(&prc, &arg));
-                returnErr(stPush(&prc.st, *arg));
+                returnErr(getPopDestination(prc, &arg, 0));
+                returnErr(stPush(&prc->st, *arg));
                 break;
             }
             case CMD_POP:
             {
                 int *arg = NULL;
-                returnErr(getPopDestination(&prc, &arg));
-                returnErr(stPop(&prc.st, arg));
+                returnErr(getPopDestination(prc, &arg, 1));
+                returnErr(stPop(&prc->st, arg));
                 break;
             }
             case CMD_DRAW:
-                returnErr(drawRam(fout, &prc));
+                returnErr(drawRam(fout, prc));
                 break;
             case CMD_JMP:
-                prc.ip = code[prc.ip];
+                prc->ip = code[prc->ip];
                 break;
 
             #define CASE_JMP(jmp, op)                     \
                 case CMD_ ## jmp:                         \
-                    returnErr(stPop(&prc.st, &prc.arg2)); \
-                    returnErr(stPop(&prc.st, &prc.arg1)); \
-                    if (prc.arg1 op prc.arg2)             \
-                        prc.ip = code[prc.ip];            \
+                    returnErr(stPop(&prc->st, &prc->arg2)); \
+                    returnErr(stPop(&prc->st, &prc->arg1)); \
+                    if (prc->arg1 op prc->arg2)             \
+                        prc->ip = code[prc->ip];            \
                     else                                  \
-                        ++prc.ip;                         \
+                        ++prc->ip;                         \
                     break;
 
             CASE_JMP(JB, <)
@@ -172,21 +178,19 @@ ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout)
             #undef CASE_JMP
 
             case CMD_CALL:
-                returnErr(stPush(&prc.ret, prc.ip + 1));
-                prc.ip = code[prc.ip];
+                returnErr(stPush(&prc->ret, prc->ip + 1));
+                prc->ip = code[prc->ip];
                 break;
             case CMD_RET:
-                returnErr(stPop(&prc.ret, &prc.ip));
+                returnErr(stPop(&prc->ret, &prc->ip));
                 break;
             default:
-                fprintf(fout, "Invalid instruction: %d ip: %d\n", prc.code[prc.ip - 1], prc.ip - 1);
-                procDtor(&prc);
+                fprintf(fout, "Invalid instruction: %d ip: %d\n", prc->code[prc->ip - 1], prc->ip - 1);
                 return ERR_INVAL_INSTR;
         }
     }
 
     // this code should never be reached
-    procDtor(&prc);
     return ERR_OK;
 }
 

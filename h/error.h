@@ -22,6 +22,7 @@
 enum ErrEnum
 {
     ERR_OK = 0,
+    ERR_UNKNOWN,
 
     ERR_ASSERT,
     ERR_STACK_UNDERFLOW,
@@ -51,6 +52,8 @@ enum ErrEnum
 
     ERR_IP_BOUND,
     ERR_INPUT,
+
+    ERR_STR_TO_INT,
 };
 
 struct ErrDescr

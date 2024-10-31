@@ -27,7 +27,7 @@ int main(int argc, const char* argv[])
     if (fcode == NULL || fin == NULL || fout == NULL)
         handleErr(ERR_FILE);
 
-    handleErr(runProc(fcode, fin, fout));
+    handleErr(runProcFile(fcode, fin, fout));
 
     fclose(fcode);
     fclose(fout);

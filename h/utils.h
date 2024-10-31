@@ -16,6 +16,6 @@ static int myMax(int a, int b)
 }
 
 ErrEnum fileSize(FILE *file, long *siz);
-ErrEnum readFile(FILE* file, char** bufptr);
+ErrEnum strToPosInt(const char* str, int* ans);
 
 #endif // UTILS_H

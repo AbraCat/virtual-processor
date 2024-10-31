@@ -6,6 +6,22 @@
 #include <common.h>
 #include <error.h>
 
+enum CmdType
+{
+    CMDT_NO_ARG,
+    CMDT_INT_ARG,
+    CMDT_COMPLEX_ARG,
+    CMDT_LABEL_ARG,
+};
+
+struct Cmd
+{
+    CmdCode code;
+    CmdType type;
+    const char* name;
+    int name_len;
+};
+
 struct Label
 {
     int adr;
@@ -18,34 +34,26 @@ struct LabelArray
     char* name_buf;
 };
 
-struct FixupElem
-{
-    int ip;
-    char* name;
-};
-struct FixupTable
-{
-    FixupElem* table;
-    int n_fixups, max_elems;
-    char* name_buf;
-};
-
 struct Asm
 {
-    char *str_code, *str_cmd;
+    char *prog_text;
     int *code;
-    int ip, str_code_pos, arg1, arg2;
-    LabelArray la;
-    FixupTable ft;
+    int ip, prog_text_pos, arg1, arg2;
+    LabelArray la, ft;
 };
 
-ErrEnum runAsm(FILE* fin, FILE* fout);
+ErrEnum getCmdIndex(const char* cmd_name, int* index);
+
+void clearComments(char* str);
+void skipTrailSpace(const char* str, int* str_pos, int* eof);
+
 void getRegNum(char* str_name, int* num);
 ErrEnum getArg(Asm*);
-void clearComments(char* str);
 
 ErrEnum asmCtor(Asm* ase);
 void asmDtor(Asm* ase);
+ErrEnum runAsm(FILE* fin, FILE* fout);
+
 
 void labelCtor(Label* label);
 ErrEnum labelArrayCtor(LabelArray* la);
@@ -53,13 +61,7 @@ void labelArrayDtor(LabelArray* la);
 
 void addLabel(LabelArray* la, int adr, char* name);
 void getLabelAdr(LabelArray* la, char* name, int* adr);
-
-void fixupElemCtor(FixupElem* fe);
-ErrEnum fixupTableCtor(FixupTable* ft);
-void fixupTableDtor(FixupTable* ft);
-
-void addFixup(FixupTable* ft, int ip, char* name);
-ErrEnum fixup(int* code, FixupTable* ft, LabelArray* la);
+ErrEnum fixup(int* code, LabelArray* ft, LabelArray* la);
 
 
 #endif // ASSEMBLER_H

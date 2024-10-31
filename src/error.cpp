@@ -4,7 +4,7 @@
 #include <error.h>
 #include <colors.h>
 
-const int n_errs = 24;
+const int n_errs = 25;
 ErrDescr err_arr[] = {{ERR_OK, "No error"}, 
 
 {ERR_ASSERT, "ERR_ASSERT"}, 
@@ -34,7 +34,9 @@ ErrDescr err_arr[] = {{ERR_OK, "No error"},
 {ERR_INVAL_LABEL, "Invalid label"},
 
 {ERR_IP_BOUND, "Ip out of bounds"},
-{ERR_INPUT, "Invalid input"}};
+{ERR_INPUT, "Invalid input"},
+
+{ERR_STR_TO_INT, "Invalid string representation of unsigned integer"}};
 
 void myAssertFn(int expr, const char* str_expr, const char* file, int line, const char* function)
 {

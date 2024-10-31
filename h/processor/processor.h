@@ -10,7 +10,7 @@
 struct Proc
 {
     Stack st, ret;
-    int ip, cmd, argt, arg1, arg2;
+    int n_cmds, ip, cmd, argt, arg1, arg2;
     int *code, *ram;
     int reg[n_regs];
 };
@@ -18,8 +18,9 @@ struct Proc
 ErrEnum procCtor(Proc* prc);
 void procDtor(Proc* prc);
 
-ErrEnum runProc(FILE* fcode, FILE* fin, FILE* fout);
-ErrEnum getPopDestination(Proc* prc, int** dest);
+ErrEnum runProcFile(FILE* fcode, FILE* fin, FILE* fout);
+ErrEnum runProc(Proc* prc, FILE* fin, FILE* fout);
+ErrEnum getPopDestination(Proc* prc, int** dest, int write);
 void initRam(Proc* prc);
 ErrEnum drawRam(FILE* fout, Proc* prc);
 void prcDump(FILE* fout, Proc* prc);
